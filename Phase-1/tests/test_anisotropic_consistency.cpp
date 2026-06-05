@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+#include <gtest/gtest.h>
 #include "metric_assembly.h"
 #include "whiten_coordinates.h"
 #include "anisotropic_distance.h"
@@ -13,7 +13,7 @@ using namespace smao::phase1;
  * Verify that anisotropic distance in original space equals
  * Euclidean distance in whitened space.
  */
-TEST_CASE("Test1.3_AnisotropicKernelConsistency", "[distance]") {
+TEST(AnisotropicDistanceTest, Test1_3_AnisotropicKernelConsistency) {
     int d = 64;
 
     // Generate SPD metric
@@ -26,7 +26,7 @@ TEST_CASE("Test1.3_AnisotropicKernelConsistency", "[distance]") {
     float kappa;
 
     Status status = metric_assembly(L, M, W, kappa);
-    REQUIRE(status == Status::OK);
+    ASSERT_EQ(status, Status::OK);
 
     // Test on multiple random point pairs
     for (int test_iter = 0; test_iter < 100; ++test_iter) {
@@ -45,14 +45,14 @@ TEST_CASE("Test1.3_AnisotropicKernelConsistency", "[distance]") {
 
         // Should be approximately equal
         float rel_error = std::abs(d_aniso_sq - d_iso_sq) / (std::abs(d_iso_sq) + 1e-10f);
-        REQUIRE(rel_error < 1e-6f);
+        ASSERT_LT(rel_error, 1e-6f);
     }
 }
 
 /**
  * Test anisotropic distance properties
  */
-TEST_CASE("Test_AnisotropicDistance_Properties", "[distance]") {
+TEST(AnisotropicDistanceTest, Properties) {
     int d = 16;
 
     MatrixXf L = MatrixXf::Identity(d, d);
@@ -60,20 +60,20 @@ TEST_CASE("Test_AnisotropicDistance_Properties", "[distance]") {
     float kappa;
 
     Status status = metric_assembly(L, M, W, kappa);
-    REQUIRE(status == Status::OK);
+    ASSERT_EQ(status, Status::OK);
 
     VectorXf q = VectorXf::Random(d);
     VectorXf k = VectorXf::Random(d);
 
     // d_M^2(q, k) should be non-negative
     float d_sq = anisotropic_squared_distance(q, k, M);
-    REQUIRE(d_sq >= -1e-6f);  // Allow small numerical error
+    ASSERT_GE(d_sq, -1e-6f);  // Allow small numerical error
 
     // d_M^2(q, q) should be near zero
     float d_self = anisotropic_squared_distance(q, q, M);
-    REQUIRE(d_self < 1e-6f);
+    ASSERT_LT(d_self, 1e-6f);
 
     // Symmetry: d_M^2(q, k) = d_M^2(k, q)
     float d_reverse = anisotropic_squared_distance(k, q, M);
-    REQUIRE(std::abs(d_sq - d_reverse) < 1e-6f);
+    ASSERT_LT(std::abs(d_sq - d_reverse), 1e-6f);
 }

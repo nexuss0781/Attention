@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+#include <gtest/gtest.h>
 #include "metric_assembly.h"
 #include "numerical_stability.h"
 #include <Eigen/Dense>
@@ -11,7 +11,7 @@ using namespace smao::phase1;
  * Verify that near-singular metrics are projected to SPD with
  * bounded condition number.
  */
-TEST_CASE("Test1.5_NearSingularMetricRecovery", "[metric][stability]") {
+TEST(NearSingularMetricTest, Test1_5_NearSingularMetricRecovery) {
     int d = 16;
 
     // Create L with very small diagonal entry (near-singular)
@@ -23,27 +23,27 @@ TEST_CASE("Test1.5_NearSingularMetricRecovery", "[metric][stability]") {
     VectorXf eigenvalues;
 
     Status status = metric_assembly(L, M, W, kappa, &eigenvalues);
-    REQUIRE(status == Status::OK);
+    ASSERT_EQ(status, Status::OK);
 
     // Verify all eigenvalues >= MIN_EIGENVALUE
     for (int i = 0; i < d; ++i) {
-        REQUIRE(eigenvalues(i) >= constants::MIN_EIGENVALUE - 1e-8f);
+        ASSERT_GE(eigenvalues(i), constants::MIN_EIGENVALUE - 1e-8f);
     }
 
     // Verify condition number constraint
-    REQUIRE(kappa <= constants::MAX_CONDITION_NUMBER);
+    ASSERT_LE(kappa, constants::MAX_CONDITION_NUMBER);
 
     // Verify M is still SPD
     Eigen::SelfAdjointEigenSolver<MatrixXf> solver(M);
     for (int i = 0; i < d; ++i) {
-        REQUIRE(solver.eigenvalues()(i) > 0.0f);
+        ASSERT_GT(solver.eigenvalues()(i), 0.0f);
     }
 }
 
 /**
  * Test with multiple near-zero diagonal entries
  */
-TEST_CASE("Test_MetricAssembly_MultipleSmallEigenvalues", "[metric][stability]") {
+TEST(NearSingularMetricTest, MultipleSmallEigenvalues) {
     int d = 16;
 
     // Create L with multiple small entries
@@ -57,12 +57,12 @@ TEST_CASE("Test_MetricAssembly_MultipleSmallEigenvalues", "[metric][stability]")
     VectorXf eigenvalues;
 
     Status status = metric_assembly(L, M, W, kappa, &eigenvalues);
-    REQUIRE(status == Status::OK);
+    ASSERT_EQ(status, Status::OK);
 
     // All eigenvalues should be safely bounded from below
     float lambda_min = eigenvalues.minCoeff();
-    REQUIRE(lambda_min >= constants::MIN_EIGENVALUE - 1e-8f);
+    ASSERT_GE(lambda_min, constants::MIN_EIGENVALUE - 1e-8f);
 
     // Condition number capped
-    REQUIRE(kappa <= constants::MAX_CONDITION_NUMBER);
+    ASSERT_LE(kappa, constants::MAX_CONDITION_NUMBER);
 }

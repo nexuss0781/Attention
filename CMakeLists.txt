@@ -18,7 +18,29 @@ endif()
 find_package(Eigen3 3.4 REQUIRED CONFIG)
 find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
-find_package(Catch2 3.4 QUIET)
+
+# Enable testing at root level so CTest can find tests
+enable_testing()
+
+# Find GoogleTest locally, or fetch it from GitHub if not found
+find_package(GTest 1.10 CONFIG QUIET)
+if(NOT GTEST_FOUND)
+    find_package(GTest QUIET)
+endif()
+
+if(NOT GTEST_FOUND)
+    message(STATUS "GoogleTest not found locally, fetching from GitHub...")
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG        v1.14.0
+    )
+    # Prevent overriding compiler/linker settings on Windows/MSVC
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+    set(GTEST_FOUND TRUE)
+endif()
 
 # Phase 1 subdirectory
 add_subdirectory(Phase-1)

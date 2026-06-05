@@ -1,12 +1,10 @@
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <gtest/gtest.h>
 #include "exact_decomposition.h"
 #include "numerical_stability.h"
 #include <Eigen/Dense>
 #include <cmath>
 
 using namespace smao::phase1;
-using Catch::Matchers::WithinRel;
 
 /**
  * Test 1.1: Algebraic Equivalence (The Core Invariant)
@@ -14,7 +12,7 @@ using Catch::Matchers::WithinRel;
  * Verify Theorem 1.1: For whitened coordinates Q, K and sigma^2 = sqrt(d_k),
  *   exp(<q, k> / sigma^2) = a[i] * w[j] * exp(-||q-k||_2^2 / (2*sigma^2))
  */
-TEST_CASE("Test1.1_AlgebraicEquivalence", "[decomposition]") {
+TEST(DecompositionTest, Test1_1_AlgebraicEquivalence) {
     int n = 512;
     int d = 64;
     uint32_t d_k = d;
@@ -27,9 +25,9 @@ TEST_CASE("Test1.1_AlgebraicEquivalence", "[decomposition]") {
     float sigma2;
 
     Status status = exact_decomposition(Q, K, d_k, a, w, sigma2);
-    REQUIRE(status == Status::OK);
-    REQUIRE(a.size() == n);
-    REQUIRE(w.size() == n);
+    ASSERT_EQ(status, Status::OK);
+    ASSERT_EQ(a.size(), n);
+    ASSERT_EQ(w.size(), n);
 
     // Compute standard attention: exp(<q_i, k_j> / sigma^2)
     // Compute decomposed attention: a[i] * w[j] * exp(-||q_i - k_j||_2^2 / (2*sigma^2))
@@ -57,13 +55,13 @@ TEST_CASE("Test1.1_AlgebraicEquivalence", "[decomposition]") {
         }
     }
 
-    REQUIRE(max_rel_error < 1e-5f);
+    ASSERT_LT(max_rel_error, 1e-5f);
 }
 
 /**
  * Test input validation
  */
-TEST_CASE("Test_ExactDecomposition_InputValidation", "[decomposition]") {
+TEST(DecompositionTest, InputValidation) {
     int n = 10;
     int d = 8;
     uint32_t d_k = d;
@@ -76,18 +74,18 @@ TEST_CASE("Test_ExactDecomposition_InputValidation", "[decomposition]") {
 
     // Valid case
     Status status = exact_decomposition(Q, K, d_k, a, w, sigma2);
-    REQUIRE(status == Status::OK);
+    ASSERT_EQ(status, Status::OK);
 
     // Dimension mismatch
     MatrixXf K_bad = MatrixXf::Random(n + 1, d);
     status = exact_decomposition(Q, K_bad, d_k, a, w, sigma2);
-    REQUIRE(status == Status::INVALID_INPUT_SHAPE);
+    ASSERT_EQ(status, Status::INVALID_INPUT_SHAPE);
 }
 
 /**
  * Test overflow guard
  */
-TEST_CASE("Test1.4_OverflowGuard", "[decomposition][stability]") {
+TEST(DecompositionTest, Test1_4_OverflowGuard) {
     int n = 10;
     int d = 8;
     uint32_t d_k = d;
@@ -106,9 +104,9 @@ TEST_CASE("Test1.4_OverflowGuard", "[decomposition][stability]") {
     // Should either return overflow or safe clipped values
     if (status == Status::OK) {
         // Verify results are finite
-        REQUIRE(std::isfinite(a(0)));
-        REQUIRE(a(0) > 0.0f);
+        ASSERT_TRUE(std::isfinite(a(0)));
+        ASSERT_GT(a(0), 0.0f);
     } else {
-        REQUIRE(status == Status::NUMERICAL_OVERFLOW);
+        ASSERT_EQ(status, Status::NUMERICAL_OVERFLOW);
     }
 }

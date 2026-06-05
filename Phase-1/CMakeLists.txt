@@ -55,26 +55,23 @@ set_target_properties(smao_phase1_shared PROPERTIES
     OUTPUT_NAME smao_phase1
 )
 
-# Tests (if Catch2 is available)
-if(Catch2_FOUND)
-    set(TEST_SOURCES
-        tests/test_exact_decomposition.cpp
-        tests/test_whitening_isometry.cpp
-        tests/test_anisotropic_consistency.cpp
-        tests/test_overflow_guard.cpp
-        tests/test_near_singular_metric.cpp
-        tests/test_adversarial_orthogonal.cpp
-        tests/test_gradient_verification.cpp
-        tests/test_distribution_preservation.cpp
-    )
+# Tests
+set(TEST_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_exact_decomposition.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_whitening_isometry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_anisotropic_consistency.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_overflow_guard.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_near_singular_metric.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_adversarial_orthogonal.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gradient_verification.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_distribution_preservation.cpp
+)
 
-    add_executable(phase1_tests ${TEST_SOURCES})
-    target_include_directories(phase1_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    target_link_libraries(phase1_tests PRIVATE smao_phase1_static Catch2::Catch2WithMain)
-    
-    enable_testing()
-    add_test(NAME Phase1Tests COMMAND phase1_tests)
-endif()
+add_executable(phase1_tests ${TEST_SOURCES})
+target_include_directories(phase1_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(phase1_tests PRIVATE smao_phase1_static GTest::gtest_main)
+
+add_test(NAME Phase1Tests COMMAND phase1_tests)
 
 # Benchmarks
 add_executable(phase1_benchmarks benchmarks/phase1_benchmarks.cpp)

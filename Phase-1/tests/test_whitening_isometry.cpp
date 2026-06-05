@@ -1,5 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <gtest/gtest.h>
 #include "metric_assembly.h"
 #include "numerical_stability.h"
 #include <Eigen/Dense>
@@ -11,7 +10,7 @@ using namespace smao::phase1;
  *
  * Verify Theorem 3.2: For W = sqrt(M), all x satisfy ||W*x||_2^2 = x^T*M*x
  */
-TEST_CASE("Test1.2_WhiteningIsometry", "[metric]") {
+TEST(WhiteningIsometryTest, Test1_2_WhiteningIsometry) {
     int d = 64;
 
     // Generate random SPD metric via L*L^T
@@ -24,7 +23,7 @@ TEST_CASE("Test1.2_WhiteningIsometry", "[metric]") {
     float kappa;
 
     Status status = metric_assembly(L, M, W, kappa);
-    REQUIRE(status == Status::OK);
+    ASSERT_EQ(status, Status::OK);
 
     // Test isometry on 1000 random unit vectors
     float max_iso_error = 0.0f;
@@ -45,13 +44,13 @@ TEST_CASE("Test1.2_WhiteningIsometry", "[metric]") {
         max_iso_error = std::max(max_iso_error, iso_error);
     }
 
-    REQUIRE(max_iso_error < 1e-6f);
+    ASSERT_LT(max_iso_error, 1e-6f);
 }
 
 /**
  * Test metric assembly properties
  */
-TEST_CASE("Test_MetricAssembly_SPDProperties", "[metric]") {
+TEST(WhiteningIsometryTest, SPDProperties) {
     int d = 32;
 
     MatrixXf L = MatrixXf::Random(d, d).triangularView<Eigen::Lower>();
@@ -64,29 +63,29 @@ TEST_CASE("Test_MetricAssembly_SPDProperties", "[metric]") {
     VectorXf eigenvalues;
 
     Status status = metric_assembly(L, M, W, kappa, &eigenvalues);
-    REQUIRE(status == Status::OK);
+    ASSERT_EQ(status, Status::OK);
 
     // Verify M is symmetric
     float max_asym = (M - M.transpose()).cwiseAbs().maxCoeff();
-    REQUIRE(max_asym < 1e-5f);
+    ASSERT_LT(max_asym, 1e-5f);
 
     // Verify eigenvalues are positive
     for (int i = 0; i < d; ++i) {
-        REQUIRE(eigenvalues(i) > 1e-6f);
+        ASSERT_GT(eigenvalues(i), 1e-6f);
     }
 
     // Verify condition number is bounded
-    REQUIRE(kappa <= 1e4f);
+    ASSERT_LE(kappa, 1e4f);
 
     // Verify W is symmetric (W = U * sqrt(Lambda) * U^T)
     float max_W_asym = (W - W.transpose()).cwiseAbs().maxCoeff();
-    REQUIRE(max_W_asym < 1e-5f);
+    ASSERT_LT(max_W_asym, 1e-5f);
 }
 
 /**
  * Test 1.5: Near-Singular Metric Recovery
  */
-TEST_CASE("Test1.5_NearSingularMetricRecovery", "[metric][stability]") {
+TEST(WhiteningIsometryTest, Test1_5_NearSingularMetricRecovery) {
     int d = 16;
 
     // Create L with one very small diagonal entry
@@ -98,18 +97,18 @@ TEST_CASE("Test1.5_NearSingularMetricRecovery", "[metric][stability]") {
     VectorXf eigenvalues;
 
     Status status = metric_assembly(L, M, W, kappa, &eigenvalues);
-    REQUIRE(status == Status::OK);
+    ASSERT_EQ(status, Status::OK);
 
     // Verify M has min eigenvalue >= 1e-6
     float lambda_min = eigenvalues.minCoeff();
-    REQUIRE(lambda_min >= 1e-6f - 1e-8f);  // Small tolerance for rounding
+    ASSERT_GE(lambda_min, 1e-6f - 1e-8f);  // Small tolerance for rounding
 
     // Verify condition number is capped
-    REQUIRE(kappa <= 1e4f);
+    ASSERT_LE(kappa, 1e4f);
 
     // Verify M is still SPD
     Eigen::SelfAdjointEigenSolver<MatrixXf> solver(M);
     for (int i = 0; i < d; ++i) {
-        REQUIRE(solver.eigenvalues()(i) > 0.0f);
+        ASSERT_GT(solver.eigenvalues()(i), 0.0f);
     }
 }

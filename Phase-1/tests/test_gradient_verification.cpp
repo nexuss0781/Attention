@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+#include <gtest/gtest.h>
 #include "phase1_forward.h"
 #include "numerical_stability.h"
 #include <Eigen/Dense>
@@ -12,7 +12,7 @@ using namespace smao::phase1;
  * Pre-validate gradient path (for Phase 7).
  * Compute numerical gradient via finite differences and verify consistency.
  */
-TEST_CASE("Test1.7_FiniteDifferenceGradientVerification", "[gradient]") {
+TEST(GradientTest, Test1_7_FiniteDifferenceGradientVerification) {
     int n = 64;
     int d = 16;
     uint32_t d_k = d;
@@ -54,14 +54,14 @@ TEST_CASE("Test1.7_FiniteDifferenceGradientVerification", "[gradient]") {
     float numerical_grad = (loss_plus - loss_minus) / (2.0f * delta);
 
     // Verify gradient is finite and reasonable
-    REQUIRE(std::isfinite(numerical_grad));
-    REQUIRE(std::abs(numerical_grad) < 1e10f);  // Not pathological
+    ASSERT_TRUE(std::isfinite(numerical_grad));
+    ASSERT_LT(std::abs(numerical_grad), 1e10f);  // Not pathological
 }
 
 /**
  * Test output differentiability w.r.t. L
  */
-TEST_CASE("Test_GradientFlow_MetricParameter", "[gradient]") {
+TEST(GradientTest, GradientFlowMetricParameter) {
     int d = 8;
 
     // Small perturbations to L
@@ -90,6 +90,6 @@ TEST_CASE("Test_GradientFlow_MetricParameter", "[gradient]") {
     // Condition number should respond smoothly to perturbations
     if (output_0.status == Status::OK && output_pert.status == Status::OK) {
         float kappa_change = std::abs(output_pert.condition_number - output_0.condition_number);
-        REQUIRE(kappa_change < 1e4f);  // Bounded change
+        ASSERT_LT(kappa_change, 1e4f);  // Bounded change
     }
 }
