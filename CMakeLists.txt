@@ -20,6 +20,7 @@ find_package(BLAS REQUIRED)
 find_package(LAPACK REQUIRED)
 
 # Enable testing at root level so CTest can find tests
+set(BUILD_TESTING ON CACHE BOOL "Enable testing" FORCE)
 enable_testing()
 
 # Find GoogleTest locally, or fetch it from GitHub if not found
@@ -30,6 +31,11 @@ endif()
 
 if(NOT GTEST_FOUND)
     message(STATUS "GoogleTest not found locally, fetching from GitHub...")
+    # Disable building GoogleTest's own internal tests and samples
+    set(gtest_build_tests OFF CACHE BOOL "Build GTest tests" FORCE)
+    set(gtest_build_samples OFF CACHE BOOL "Build GTest samples" FORCE)
+    set(gmock_build_tests OFF CACHE BOOL "Build GMock tests" FORCE)
+
     include(FetchContent)
     FetchContent_Declare(
         googletest
