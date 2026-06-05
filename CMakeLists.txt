@@ -5,6 +5,15 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Add module path for custom CMake modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+# Include dependency installer
+include(InstallDependencies)
+
+# Install all dependencies automatically
+install_all_dependencies()
+
 # Compiler flags for performance and standards compliance
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-O3 -march=native -ffast-math -Wall -Wextra -Wpedantic)
@@ -13,19 +22,28 @@ elseif(MSVC)
     add_compile_options(/O2 /arch:AVX2 /W4 /permissive-)
 endif()
 
-# Find dependencies
-find_package(BLAS REQUIRED)
-find_package(LAPACK REQUIRED)
-find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+# Find packages (now they should be available)
+if(NOT BLAS_FOUND OR NOT LAPACK_FOUND)
+    find_package(BLAS REQUIRED)
+    find_package(LAPACK REQUIRED)
+endif()
 
-# Google Test
-include(FetchContent)
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG v1.14.0
-)
-FetchContent_MakeAvailable(googletest)
+if(NOT Eigen3_FOUND)
+    find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+endif()
+
+# Google Test should already be available from dependency installation
+if(NOT TARGET GTest::gtest)
+    # If not available via find_package, FetchContent should have populated it
+    include(FetchContent)
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.14.0
+    )
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
+endif()
 
 # Source files
 set(SMAO_SOURCES
@@ -36,6 +54,7 @@ set(SMAO_SOURCES
     src/core/anisotropic_distance.cpp
     src/core/numerical_guards.cpp
     src/core/phase1_forward.cpp
+    src/c_api.cpp
 )
 
 # Header files (for IDE support)
@@ -59,12 +78,23 @@ target_include_directories(smao_phase1_static
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(smao_phase1_static
-    PUBLIC
-        Eigen3::Eigen
-        BLAS::BLAS
-        LAPACK::LAPACK
-)
+
+if(Eigen3_FOUND)
+    target_link_libraries(smao_phase1_static
+        PUBLIC
+            Eigen3::Eigen
+            BLAS::BLAS
+            LAPACK::LAPACK
+    )
+else()
+    target_link_libraries(smao_phase1_static
+        PUBLIC
+            ${EIGEN3_INCLUDE_DIR}
+            BLAS::BLAS
+            LAPACK::LAPACK
+    )
+endif()
+
 set_target_properties(smao_phase1_static PROPERTIES OUTPUT_NAME smao_phase1)
 
 # Create shared library
@@ -76,12 +106,23 @@ target_include_directories(smao_phase1_shared
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(smao_phase1_shared
-    PUBLIC
-        Eigen3::Eigen
-        BLAS::BLAS
-        LAPACK::LAPACK
-)
+
+if(Eigen3_FOUND)
+    target_link_libraries(smao_phase1_shared
+        PUBLIC
+            Eigen3::Eigen
+            BLAS::BLAS
+            LAPACK::LAPACK
+    )
+else()
+    target_link_libraries(smao_phase1_shared
+        PUBLIC
+            ${EIGEN3_INCLUDE_DIR}
+            BLAS::BLAS
+            LAPACK::LAPACK
+    )
+endif()
+
 set_target_properties(smao_phase1_shared PROPERTIES OUTPUT_NAME smao_phase1)
 
 # Tests
@@ -100,6 +141,8 @@ target_link_libraries(smao_phase1_tests
     smao_phase1_static
     GTest::gtest_main
 )
+
+# Register tests with CTest
 include(GoogleTest)
 gtest_discover_tests(smao_phase1_tests)
 
@@ -127,3 +170,33 @@ install(EXPORT smao_phase1-targets
     NAMESPACE smao::
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/smao_phase1
 )
+
+# Print configuration summary
+message(STATUS "")
+message(STATUS "========================================")
+message(STATUS "SMAO Phase 1 Configuration Summary")
+message(STATUS "========================================")
+message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+message(STATUS "")
+message(STATUS "Dependencies:")
+if(Eigen3_FOUND)
+    message(STATUS "  Eigen3: Found")
+else()
+    message(STATUS "  Eigen3: Will be fetched")
+endif()
+if(BLAS_FOUND)
+    message(STATUS "  BLAS: ${BLAS_LIBRARIES}")
+endif()
+if(LAPACK_FOUND)
+    message(STATUS "  LAPACK: ${LAPACK_LIBRARIES}")
+endif()
+message(STATUS "")
+message(STATUS "Components:")
+message(STATUS "  Static Library: Yes")
+message(STATUS "  Shared Library: Yes")
+message(STATUS "  Tests: Yes")
+message(STATUS "  Benchmarks: Yes")
+message(STATUS "========================================")
+message(STATUS "")
