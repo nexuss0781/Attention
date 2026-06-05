@@ -39,20 +39,20 @@ Status whiten_coordinates(
         return Status::InvalidInput;
     }
     
-    const int m = static_cast<int>(n);  // rows of A and C
-    const int k = static_cast<int>(d);  // cols of A and rows of B
-    const int n_cols = static_cast<int>(d);  // cols of B and C
+    int m = static_cast<int>(n);  // rows of A and C
+    int k = static_cast<int>(d);  // cols of A and rows of B
+    int n_cols = static_cast<int>(d);  // cols of B and C
     
-    const f32 alpha = 1.0f;
-    const f32 beta = 0.0f;
+    float alpha = 1.0f;
+    float beta = 0.0f;
     
     // X_whitened = X * W
     // X is m x k, W is k x n_cols, result is m x n_cols
     // In BLAS: C = alpha*A*B + beta*C
     // A = X (m x k), B = W (k x n_cols), C = X_whitened (m x n_cols)
     
-    const char transa = 'N';  // No transpose for A
-    const char transb = 'N';  // No transpose for B
+    char transa = 'N';  // No transpose for A
+    char transb = 'N';  // No transpose for B
     
     sgemm_(&transa, &transb, &m, &n_cols, &k,
            &alpha, x, &m,

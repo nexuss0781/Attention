@@ -39,9 +39,9 @@ Status symmetric_eigendecomposition(
         return Status::InvalidInput;
     }
 
-    const int n = static_cast<int>(d);
-    const int lda = n;
-    const int ldz = n;
+    int n = static_cast<int>(d);
+    int lda = n;
+    int ldz = n;
     
     // Query optimal workspace
     int lwork = -1;
@@ -55,12 +55,12 @@ Status symmetric_eigendecomposition(
     std::memcpy(eigenvectors, matrix, d * d * sizeof(f32));
     
     // Range parameters (compute all eigenvalues)
-    const char jobz = 'V';  // Compute eigenvalues and eigenvectors
-    const char range = 'A';  // All eigenvalues
-    const char uplo = 'U';  // Upper triangle (we use symmetric storage)
-    const float vl = 0.0f, vu = 0.0f;
-    const int il = 1, iu = n;
-    const float abstol = 0.0f;  // Use default tolerance
+    char jobz = 'V';  // Compute eigenvalues and eigenvectors
+    char range = 'A';  // All eigenvalues
+    char uplo = 'U';  // Upper triangle (we use symmetric storage)
+    float vl = 0.0f, vu = 0.0f;
+    int il = 1, iu = n;
+    float abstol = 0.0f;  // Use default tolerance
     
     // Query workspace
     ssyevr_(&jobz, &range, &uplo, &n, eigenvectors, &lda,
