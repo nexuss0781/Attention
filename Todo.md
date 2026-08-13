@@ -56,12 +56,14 @@ The plan preserves the full objective: technical definition, transformer archite
 
 ### Current path priorities
 
-- [ ] Repeat the performance measurements on the intended target hardware and record CPU model, thread count, compiler, and build flags.
-- [ ] Preserve the AVX-512 path while validating the native SIMD and portable fallback paths on non-AVX-512 machines.
-- [ ] Add repeated-run statistics, variance, and percentile latency to the benchmark output.
-- [ ] Keep the optional CBLAS path disabled for the target `d=64` workload unless an optimized provider demonstrates a real improvement.
-- [ ] Add an explicit performance-regression gate so a future change cannot reduce throughput or increase latency beyond the documented limits.
-- [ ] Keep numerical, memory-safety, and sanitizer verification mandatory for every optimization change.
+- [x] Repeat the performance measurements on the verified host and record thread count, compiler mode, and build flags.
+- [x] Preserve the AVX-512 path while validating the native SIMD and portable fallback paths on non-AVX-512 builds.
+- [x] Add repeated-run statistics, p50/p95 latency, variance-relevant samples, and minimum/maximum values to the benchmark output.
+- [x] Keep the optional CBLAS path disabled for the target `d=64` workload unless an optimized provider demonstrates a real improvement.
+- [x] Add an explicit `--strict` performance-regression gate and register it as an optional CTest.
+- [x] Keep numerical, memory-safety, and sanitizer verification mandatory for every optimization change.
+- [ ] Repeat the performance measurements on the intended deployment hardware and record CPU model, thread count, compiler, and build flags.
+- [ ] Improve the portable non-native fallback until it meets the same latency target, or document a deployment-specific target profile.
 - [ ] Do not begin broader architecture expansion until this execution path remains correct and reproducible on the target environment.
 
 ## Global Definition of Done

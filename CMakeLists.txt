@@ -13,6 +13,7 @@ option(ATTENTION_ENABLE_OPENMP "Enable OpenMP parallel dense kernels" ON)
 option(ATTENTION_ENABLE_CBLAS "Enable optimized-provider CBLAS row-major GEMM" OFF)
 option(ATTENTION_BUILD_TESTS "Build Attention tests" ON)
 option(ATTENTION_BUILD_BENCHMARKS "Build Attention benchmarks" ON)
+option(ATTENTION_ENABLE_PERFORMANCE_TESTS "Register strict performance regression tests" OFF)
 
 include(FetchContent)
 
@@ -154,6 +155,13 @@ if(ATTENTION_BUILD_BENCHMARKS)
     add_executable(attention_benchmarks benchmarks/benchmark_throughput.cpp)
     target_link_libraries(attention_benchmarks PRIVATE attention_static)
     target_compile_features(attention_benchmarks PRIVATE cxx_std_20)
+    if(ATTENTION_ENABLE_PERFORMANCE_TESTS)
+        add_test(NAME AttentionPerformanceRegression
+                 COMMAND attention_benchmarks --full --strict --repeats 5)
+        set_tests_properties(AttentionPerformanceRegression PROPERTIES TIMEOUT 300)
+    endif()
+elseif(ATTENTION_ENABLE_PERFORMANCE_TESTS)
+    message(FATAL_ERROR "ATTENTION_ENABLE_PERFORMANCE_TESTS requires ATTENTION_BUILD_BENCHMARKS=ON")
 endif()
 
 include(GNUInstallDirs)

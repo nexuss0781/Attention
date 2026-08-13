@@ -82,10 +82,11 @@ The benchmark executable distinguishes **valid numerical execution** from whethe
 
 ```bash
 ./build/attention_benchmarks
-./build/attention_benchmarks --full
+./build/attention_benchmarks --full --repeats 5
+./build/attention_benchmarks --full --strict --repeats 5
 ```
 
-The `--full` mode includes the documented `n=1,000,000, d=64` end-to-end case. The end-to-end benchmark warms a reusable output workspace and then measures steady-state execution, which is the intended runtime mode for repeated inference. Benchmark output reports decomposition throughput, end-to-end latency, validity, and target status separately.
+The `--full` mode includes the documented `n=1,000,000, d=64` end-to-end case. The end-to-end benchmark warms a reusable output workspace and then measures steady-state execution, which is the intended runtime mode for repeated inference. `--repeats N` reports mean, p50, p95, minimum, and maximum latency. `--strict` returns a nonzero status if the documented p95 target is missed, allowing the benchmark to run as a CTest performance-regression gate. Benchmark output reports decomposition throughput, end-to-end latency, validity, and target status separately. Native SIMD builds meet the target on the verified host; portable non-native builds remain numerically valid but can have lower throughput.
 
 ## C API Contract
 
