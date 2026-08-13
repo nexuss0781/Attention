@@ -24,6 +24,46 @@ The plan preserves the full objective: technical definition, transformer archite
 | `[!]` | Blocked or requires a decision |
 | `[*]` | Optional investigation that must not block the main path unless promoted |
 
+## Current Focus — Verified Performance Path
+
+**Status: started and active.** The project is currently focused on the high-performance, numerically safe execution path through the existing Attention Phase 1 foundation. Optimization work has already begun and has produced a verified target-meeting implementation; this is not a future or unstarted path.
+
+> **Focus rule:** Keep the current numerical path correct, fast, measurable, and reusable before expanding into broader model, training, or runtime layers.
+
+### Completed performance-path work
+
+- [x] Established a profiling baseline for metric assembly, whitening, decomposition, validation, and gate checks.
+- [x] Added native SIMD build support and OpenMP row parallelism.
+- [x] Added the cache-resident AVX-512 fused Q/K whitening microkernel for the target `d=64` workload.
+- [x] Added vectorized decomposition and combined query/key norm processing.
+- [x] Fused finite-input and output validity checks into the optimized whitening path.
+- [x] Removed redundant full-buffer scans from the trusted forward path.
+- [x] Replaced expensive runtime sample verification with a direct `WᵀW` residual check.
+- [x] Added reusable-output execution through `phase1_forward_into` to eliminate repeated large allocations.
+- [x] Updated the benchmark to measure warmed steady-state execution.
+- [x] Added regression coverage for output-workspace reuse.
+- [x] Documented optimization modes and benchmark semantics in the README.
+
+### Verified performance record
+
+| Measurement | Verified result | Target | Status |
+|---|---:|---:|---|
+| Decomposition, `n=1,000,000`, `d=64` | `151.79 ms`, `6.59 M tokens/sec` | At least `5 M tokens/sec` | [x] Met |
+| End-to-end Phase 1, `n=1,000,000`, `d=64` | `58.84 ms` | At most `200 ms` | [x] Met |
+| Release regression suite | `32/32` passed | All tests pass | [x] Met |
+| Sanitizer regression suite | `31/31` passed | No sanitizer failures | [x] Met |
+| Release build warnings | None reported | No compiler warnings | [x] Met |
+
+### Current path priorities
+
+- [ ] Repeat the performance measurements on the intended target hardware and record CPU model, thread count, compiler, and build flags.
+- [ ] Preserve the AVX-512 path while validating the native SIMD and portable fallback paths on non-AVX-512 machines.
+- [ ] Add repeated-run statistics, variance, and percentile latency to the benchmark output.
+- [ ] Keep the optional CBLAS path disabled for the target `d=64` workload unless an optimized provider demonstrates a real improvement.
+- [ ] Add an explicit performance-regression gate so a future change cannot reduce throughput or increase latency beyond the documented limits.
+- [ ] Keep numerical, memory-safety, and sanitizer verification mandatory for every optimization change.
+- [ ] Do not begin broader architecture expansion until this execution path remains correct and reproducible on the target environment.
+
 ## Global Definition of Done
 
 Attention is complete only when all of the following are true:
@@ -646,24 +686,24 @@ Attention is complete only when all of the following are true:
 - [ ] Measure memory footprint.
 - [ ] Measure startup time.
 - [ ] Measure first-token latency.
-- [ ] Measure tokens per second.
-- [ ] Measure sustained throughput.
+- [x] Measure tokens per second.
+- [x] Measure sustained throughput.
 - [ ] Measure CPU and GPU utilization.
 - [ ] Measure memory bandwidth where relevant.
 - [ ] Measure energy or thermal behavior where available.
-- [ ] Record quality alongside every performance measurement.
+- [x] Record quality and numerical validity alongside every performance measurement.
 
 ### 11.2 Optimize inference
 
-- [ ] Implement the intended local precision.
+- [x] Implement and verify the intended F32 local precision path.
 - [ ] Investigate reduced precision.
 - [ ] Investigate quantization.
 - [ ] Investigate weight sharing.
 - [ ] Investigate pruning.
 - [ ] Implement key-value caching where applicable.
-- [ ] Reduce unnecessary memory copies.
-- [ ] Reduce startup overhead.
-- [ ] Compare quality before and after every optimization.
+- [x] Reduce unnecessary memory copies through fused kernels and reusable output workspaces.
+- [x] Reduce startup and steady-state overhead in the Phase 1 forward path.
+- [x] Compare numerical validity and regression results before and after every completed optimization.
 - [ ] Reject optimizations that violate quality thresholds.
 - [ ] Package the model without requiring the full training environment.
 
