@@ -1,52 +1,59 @@
-cmake_minimum_required(VERSION 3.25)
-project(SMAO_Phase1 VERSION 1.0.0 LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.20)
+
+project(Attention VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Add module path for custom CMake modules
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+option(ATTENTION_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(ATTENTION_BUILD_TESTS "Build Attention tests" ON)
+option(ATTENTION_BUILD_BENCHMARKS "Build Attention benchmarks" ON)
 
-# Include dependency installer
-include(InstallDependencies)
+include(FetchContent)
 
-# Install all dependencies automatically
-install_all_dependencies()
-
-# Compiler flags for performance and standards compliance
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    add_compile_options(-O3 -march=native -ffast-math -Wall -Wextra -Wpedantic)
-    add_compile_options(-fPIC)
-elseif(MSVC)
-    add_compile_options(/O2 /arch:AVX2 /W4 /permissive-)
-endif()
-
-# Find packages (now they should be available)
-if(NOT BLAS_FOUND OR NOT LAPACK_FOUND)
-    find_package(BLAS REQUIRED)
-    find_package(LAPACK REQUIRED)
-endif()
-
+find_package(Eigen3 3.4 QUIET NO_MODULE)
 if(NOT Eigen3_FOUND)
-    find_package(Eigen3 3.4 REQUIRED NO_MODULE)
-endif()
-
-# Google Test should already be available from dependency installation
-if(NOT TARGET GTest::gtest)
-    # If not available via find_package, FetchContent should have populated it
-    include(FetchContent)
     FetchContent_Declare(
-        googletest
-        GIT_REPOSITORY https://github.com/google/googletest.git
-        GIT_TAG v1.14.0
+        eigen
+        GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
+        GIT_TAG 3.4.0
+        GIT_SHALLOW TRUE
     )
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
+    FetchContent_MakeAvailable(eigen)
 endif()
 
-# Source files
-set(SMAO_SOURCES
+if(NOT TARGET Eigen3::Eigen)
+    message(FATAL_ERROR "Eigen3::Eigen target is required")
+endif()
+
+if(ATTENTION_BUILD_TESTS)
+    find_package(GTest QUIET)
+    if(NOT TARGET GTest::gtest_main)
+        FetchContent_Declare(
+            googletest
+            GIT_REPOSITORY https://github.com/google/googletest.git
+            GIT_TAG v1.14.0
+            GIT_SHALLOW TRUE
+        )
+        set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+        FetchContent_MakeAvailable(googletest)
+    endif()
+endif()
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-O3 -Wall -Wextra -Wpedantic)
+elseif(MSVC)
+    add_compile_options(/O2 /W4 /permissive-)
+endif()
+
+if(ATTENTION_ENABLE_SANITIZERS AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+endif()
+
+set(ATTENTION_SOURCES
     src/core/types.cpp
     src/core/exact_decomposition.cpp
     src/core/metric_assembly.cpp
@@ -57,8 +64,7 @@ set(SMAO_SOURCES
     src/c_api.cpp
 )
 
-# Header files (for IDE support)
-set(SMAO_HEADERS
+set(ATTENTION_HEADERS
     include/smao_phase1/smao_phase1.h
     include/smao_phase1/core/types.h
     include/smao_phase1/core/exact_decomposition.h
@@ -69,134 +75,61 @@ set(SMAO_HEADERS
     include/smao_phase1/core/phase1_forward.h
 )
 
-# Create static library
-add_library(smao_phase1_static STATIC ${SMAO_SOURCES} ${SMAO_HEADERS})
-target_include_directories(smao_phase1_static
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
+function(configure_attention_target target)
+    target_include_directories(${target}
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src
+    )
+    target_link_libraries(${target} PUBLIC Eigen3::Eigen)
+    target_compile_features(${target} PUBLIC cxx_std_20)
+endfunction()
 
-if(Eigen3_FOUND)
-    target_link_libraries(smao_phase1_static
-        PUBLIC
-            Eigen3::Eigen
-            BLAS::BLAS
-            LAPACK::LAPACK
+add_library(attention_static STATIC ${ATTENTION_SOURCES} ${ATTENTION_HEADERS})
+configure_attention_target(attention_static)
+set_target_properties(attention_static PROPERTIES OUTPUT_NAME attention)
+
+add_library(attention_shared SHARED ${ATTENTION_SOURCES} ${ATTENTION_HEADERS})
+configure_attention_target(attention_shared)
+set_target_properties(attention_shared PROPERTIES OUTPUT_NAME attention VERSION ${PROJECT_VERSION} SOVERSION 1)
+
+if(ATTENTION_BUILD_TESTS)
+    enable_testing()
+    add_executable(attention_tests
+        tests/test_exact_decomposition.cpp
+        tests/test_metric_assembly.cpp
+        tests/test_whiten_coordinates.cpp
+        tests/test_anisotropic_distance.cpp
+        tests/test_numerical_guards.cpp
+        tests/test_phase1_forward.cpp
+        tests/test_algebraic_equivalence.cpp
+        tests/test_gradient_accuracy.cpp
+        tests/test_c_api.cpp
     )
-else()
-    target_link_libraries(smao_phase1_static
-        PUBLIC
-            ${EIGEN3_INCLUDE_DIR}
-            BLAS::BLAS
-            LAPACK::LAPACK
-    )
+    target_link_libraries(attention_tests PRIVATE attention_static GTest::gtest_main)
+    target_compile_features(attention_tests PRIVATE cxx_std_20)
+    include(GoogleTest)
+    gtest_discover_tests(attention_tests)
 endif()
 
-set_target_properties(smao_phase1_static PROPERTIES OUTPUT_NAME smao_phase1)
-
-# Create shared library
-add_library(smao_phase1_shared SHARED ${SMAO_SOURCES} ${SMAO_HEADERS})
-target_include_directories(smao_phase1_shared
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-if(Eigen3_FOUND)
-    target_link_libraries(smao_phase1_shared
-        PUBLIC
-            Eigen3::Eigen
-            BLAS::BLAS
-            LAPACK::LAPACK
-    )
-else()
-    target_link_libraries(smao_phase1_shared
-        PUBLIC
-            ${EIGEN3_INCLUDE_DIR}
-            BLAS::BLAS
-            LAPACK::LAPACK
-    )
+if(ATTENTION_BUILD_BENCHMARKS)
+    add_executable(attention_benchmarks benchmarks/benchmark_throughput.cpp)
+    target_link_libraries(attention_benchmarks PRIVATE attention_static)
+    target_compile_features(attention_benchmarks PRIVATE cxx_std_20)
 endif()
 
-set_target_properties(smao_phase1_shared PROPERTIES OUTPUT_NAME smao_phase1)
-
-# Tests
-enable_testing()
-add_executable(smao_phase1_tests
-    tests/test_exact_decomposition.cpp
-    tests/test_metric_assembly.cpp
-    tests/test_whiten_coordinates.cpp
-    tests/test_anisotropic_distance.cpp
-    tests/test_numerical_guards.cpp
-    tests/test_phase1_forward.cpp
-    tests/test_algebraic_equivalence.cpp
-    tests/test_gradient_accuracy.cpp
-)
-target_link_libraries(smao_phase1_tests
-    smao_phase1_static
-    GTest::gtest_main
-)
-
-# Register tests with CTest
-include(GoogleTest)
-gtest_discover_tests(smao_phase1_tests)
-
-# Benchmarks
-add_executable(smao_phase1_benchmarks
-    benchmarks/benchmark_throughput.cpp
-)
-target_link_libraries(smao_phase1_benchmarks
-    smao_phase1_static
-)
-
-# Installation
 include(GNUInstallDirs)
-install(TARGETS smao_phase1_static smao_phase1_shared
-    EXPORT smao_phase1-targets
+install(TARGETS attention_static attention_shared
+    EXPORT attention-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
-install(DIRECTORY include/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(EXPORT attention-targets
+    FILE attention-targets.cmake
+    NAMESPACE attention::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/attention
 )
-install(EXPORT smao_phase1-targets
-    FILE smao_phase1-targets.cmake
-    NAMESPACE smao::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/smao_phase1
-)
-
-# Print configuration summary
-message(STATUS "")
-message(STATUS "========================================")
-message(STATUS "SMAO Phase 1 Configuration Summary")
-message(STATUS "========================================")
-message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
-message(STATUS "")
-message(STATUS "Dependencies:")
-if(Eigen3_FOUND)
-    message(STATUS "  Eigen3: Found")
-else()
-    message(STATUS "  Eigen3: Will be fetched")
-endif()
-if(BLAS_FOUND)
-    message(STATUS "  BLAS: ${BLAS_LIBRARIES}")
-endif()
-if(LAPACK_FOUND)
-    message(STATUS "  LAPACK: ${LAPACK_LIBRARIES}")
-endif()
-message(STATUS "")
-message(STATUS "Components:")
-message(STATUS "  Static Library: Yes")
-message(STATUS "  Shared Library: Yes")
-message(STATUS "  Tests: Yes")
-message(STATUS "  Benchmarks: Yes")
-message(STATUS "========================================")
-message(STATUS "")

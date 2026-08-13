@@ -1,203 +1,115 @@
-# SMAO Phase 1: Kernel Geometry & Metric Space
+# Attention Phase 1 Kernel
 
-Complete C++20 implementation of Phase 1 of the Spectral Multipole Attention Operator (SMAO).
+Attention Phase 1 is a C++20 numerical kernel for metric-aware attention geometry. It assembles a positive-definite learned metric, computes a symmetric whitening operator, transforms query and key coordinates, and evaluates the scalar Gaussian decomposition factors required by later attention stages.
 
-## Overview
+The current release is intentionally a **numerical foundation**, not a complete transformer or language model. It does not train parameters, tokenize text, consume values into normalized attention outputs, or provide a language-generation runtime.
 
-Phase 1 establishes the algebraic and geometric foundation for the attention mechanism by:
-- Eliminating the softmax nonlinearity through exact Gaussian kernel decomposition
-- Introducing a learned anisotropic metric that re-scales the embedding space
-- Producing validated, numerically stable coordinates for subsequent phases
+## Pipeline
+
+The validated forward path is:
+
+1. Validate dimensions, pointers, precision, finite values, and lower-triangular metric constraints.
+2. Assemble `M = L Lᵀ + εI`.
+3. Compute a stable symmetric eigendecomposition.
+4. Project the spectrum to the configured condition-number bound.
+5. Reconstruct the metric and whitening operator from the same projected spectrum.
+6. Compute `Q̃ = QW` and `K̃ = KW` using row-major Eigen maps.
+7. Compute bounded scalar factors and `σ² = sqrt(dₖ)`.
+8. Verify finite outputs and the whitening isometry before returning success.
+
+The metric exposed to callers and the whitening operator are kept consistent after conditioning, so the quadratic-form distance and whitened-space distance describe the same geometry within float32 roundoff.
 
 ## Project Structure
 
-```
+```text
 .
-├── CMakeLists.txt              # Main build configuration
-├── README.md                   # This file
-├── include/
-│   └── smao_phase1/
-│       ├── smao_phase1.h       # Public C API
-│       └── core/
-│           ├── types.h         # Core type definitions
-│           ├── exact_decomposition.h
-│           ├── metric_assembly.h
-│           ├── whiten_coordinates.h
-│           ├── anisotropic_distance.h
-│           ├── numerical_guards.h
-│           └── phase1_forward.h
+├── CMakeLists.txt
+├── include/smao_phase1/
+│   ├── smao_phase1.h
+│   └── core/
+│       ├── types.h
+│       ├── exact_decomposition.h
+│       ├── metric_assembly.h
+│       ├── whiten_coordinates.h
+│       ├── anisotropic_distance.h
+│       ├── numerical_guards.h
+│       └── phase1_forward.h
 ├── src/
 │   ├── core/
-│   │   ├── types.cpp
-│   │   ├── exact_decomposition.cpp    # Algorithm 1
-│   │   ├── metric_assembly.cpp        # Algorithm 2
-│   │   ├── whiten_coordinates.cpp     # Algorithm 3
-│   │   ├── anisotropic_distance.cpp   # Algorithm 4
-│   │   ├── numerical_guards.cpp       # Contracts 3.1-3.3
-│   │   └── phase1_forward.cpp         # Algorithm 5
-│   └── c_api.cpp                      # C API implementation
+│   └── c_api.cpp
 ├── tests/
-│   ├── test_exact_decomposition.cpp   # Test 1.1, 1.4, 1.6
-│   ├── test_metric_assembly.cpp       # Test 1.2, 1.5
-│   ├── test_whiten_coordinates.cpp
-│   ├── test_anisotropic_distance.cpp  # Test 1.3, 1.8
-│   ├── test_numerical_guards.cpp      # Contracts 3.1-3.3
-│   ├── test_phase1_forward.cpp        # Integration tests
-│   └── test_gradient_accuracy.cpp     # Test 1.7
 └── benchmarks/
-    └── benchmark_throughput.cpp       # Performance benchmarks
 ```
 
-## Building
+## Requirements
 
-### Prerequisites
+The project requires a C++20 compiler, CMake 3.20 or newer, and Eigen 3.4 or newer. GoogleTest is fetched by CMake only when it is not already installed. The implementation no longer calls raw BLAS or LAPACK symbols, so a system BLAS/LAPACK installation is not required.
 
-- C++20 compatible compiler (GCC 12+, Clang 16+)
-- CMake 3.25+
-- Eigen 3.4+
-- BLAS/LAPACK (OpenBLAS, MKL, or reference)
-- Google Test (fetched automatically)
+The build deliberately does **not** enable `-ffast-math`. NaN and infinity detection are part of the numerical safety contract and require ordinary IEEE floating-point behavior.
 
-### Build Commands
+## Build and Test
 
 ```bash
-# Clone and enter directory
-cd smaophase1
-
-# Create build directory
-mkdir build && cd build
-
-# Configure
-cmake .. -DCMAKE_BUILD_TYPE=Release
-
-# Build
-make -j$(nproc)
-
-# Run tests
-ctest --output-on-failure
-
-# Run benchmarks
-./benchmarks/smao_phase1_benchmarks
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+ctest --test-dir build --output-on-failure
 ```
 
-### CMake Options
+A sanitizer build is available through a dedicated option:
 
 ```bash
-# Debug build with sanitizers
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined"
-
-# Build only static library
-cmake .. -DBUILD_SHARED_LIBS=OFF
-
-# Use specific BLAS
-
-cmake .. -DBLA_VENDOR=OpenBLAS
+cmake -S . -B build-sanitized \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DATTENTION_ENABLE_SANITIZERS=ON
+cmake --build build-sanitized -j"$(nproc)"
+ctest --test-dir build-sanitized --output-on-failure
 ```
 
-## Test Suite
+The CMake options are:
 
-### Implemented Tests
+| Option | Default | Meaning |
+|---|---:|---|
+| `ATTENTION_BUILD_TESTS` | `ON` | Build and register GoogleTest tests |
+| `ATTENTION_BUILD_BENCHMARKS` | `ON` | Build the benchmark executable |
+| `ATTENTION_ENABLE_SANITIZERS` | `OFF` | Enable AddressSanitizer and UndefinedBehaviorSanitizer |
 
-| Test ID | Description | Status |
-|---------|-------------|--------|
-| Test 1.1 | Algebraic Equivalence (Core Invariant) | ✅ Implemented |
-| Test 1.2 | Whitening Isometry | ✅ Implemented |
-| Test 1.3 | Anisotropic Kernel Consistency | ✅ Implemented |
-| Test 1.4 | Extreme Norm Overflow Guard | ✅ Implemented |
-| Test 1.5 | Near-Singular Metric Recovery | ✅ Implemented |
-| Test 1.6 | Adversarial Orthogonal Inputs | ✅ Implemented |
-| Test 1.7 | Finite-Difference Gradient | ✅ Implemented |
-| Test 1.8 | Output Distribution Preservation | ✅ Implemented |
+## Benchmarking
 
-### Numerical Contracts
+The benchmark executable distinguishes **valid numerical execution** from whether a hardware target was met. A target miss is reported without being confused with an algorithmic failure.
 
-| Contract | Description | Status |
-|----------|-------------|--------|
-| 3.1 | Exponent Range [-88, 88] | ✅ Implemented |
-| 3.2 | Condition Number < 10^4 | ✅ Implemented |
-| 3.3 | NaN Propagation Prevention | ✅ Implemented |
-
-## Performance Metrics
-
-Target specifications from the design document:
-
-| Metric | Target | Status |
-|--------|--------|--------|
-| Decomposition Throughput | >= 5 x 10^6 tok/s | 🔄 Testable |
-| End-to-End Latency (n=10^6, d=64) | <= 200 ms | 🔄 Testable |
-| Memory (no O(n^2) auxiliary) | Verified | ✅ Guaranteed |
-
-Run benchmarks to verify:
 ```bash
-./smao_phase1_benchmarks
+./build/attention_benchmarks
+./build/attention_benchmarks --full
 ```
 
-## C API Usage Example
+The `--full` mode includes the documented `n=1,000,000, d=64` end-to-end case. Benchmark output reports decomposition throughput, end-to-end latency, validity, and target status separately.
 
-```c
-#include "smao_phase1/smao_phase1.h"
-#include <stdio.h>
-#include <stdlib.h>
+## C API Contract
 
-int main() {
-    // Setup dimensions
-    size_t n = 1000;  // Number of tokens
-    size_t d = 64;    // Head dimension
-    
-    // Allocate input data
-    float* q = (float*)malloc(n * d * sizeof(float));
-    float* k = (float*)malloc(n * d * sizeof(float));
-    float* v = (float*)malloc(n * d * sizeof(float));
-    float* l = (float*)malloc(d * d * sizeof(float));
-    
-    // Fill with data (initialize appropriately)
-    // ...
-    
-    // Setup input struct
-    smao_phase1_input_t input = {
-        .q = q,
-        .k = k,
-        .v = v,
-        .l = l,
-        .n = n,
-        .d = d,
-        .d_v = d,
-        .precision = SMAO_F32
-    };
-    
-    // Setup output struct
-    smao_phase1_output_t output = {0};
-    
-    // Run Phase 1
-    smao_status_t status = smao_phase1_forward(&input, &output);
-    
-    if (status != SMAO_OK) {
-        printf("Phase 1 failed: %s\n", smao_status_string(status));
-        return 1;
-    }
-    
-    // Access outputs
-    printf("Condition number: %f\n", output.condition_number);
-    printf("Sigma^2: %f\n", output.sigma_squared);
-    
-    // Clean up
-    smao_phase1_release(&output);
-    free(q); free(k); free(v); free(l);
-    
-    return 0;
-}
-```
+The public header is C-compatible and supports `SMAO_F32`. The declared F16 and BF16 modes are rejected explicitly until real conversion and computation paths are implemented.
+
+The output structure must be zero-initialized before the first call. A successful call allocates all output buffers and creates an opaque metric handle. Call `smao_phase1_release` exactly once before reusing or discarding a successful output. Release is idempotent for a zeroed or already released output.
+
+On failure, the forward API returns an error before allocating or copying result buffers. It never reports success with fabricated output. The distance API uses the opaque handle from a successful forward call and computes the actual metric distance.
+
+## Numerical Contracts
+
+| Contract | Behavior |
+|---|---|
+| Finite inputs | NaN and infinity are rejected before computation |
+| Exponent bounds | Scale factors are clipped to the configured log range and remain finite |
+| Positive metric | The projected metric is positive definite within float32 roundoff |
+| Condition number | The returned metric satisfies the configured inclusive bound |
+| Whitening | `WᵀW` and the returned metric represent the same quadratic form |
+| Allocation safety | No `O(n²)` forward-path result buffer is allocated |
+| Error propagation | Invalid input, numerical failure, allocation failure, and decomposition failure are distinct statuses |
+
+## Tests
+
+The repository includes 31 registered tests covering algebraic decomposition, overflow handling, adversarial inputs, compensated accumulation, metric assembly, eigendecomposition, whitening, anisotropic-distance consistency, numerical guards, forward integration, analytical-versus-finite-difference metric gradients, and the public C API.
+
+The distribution-preservation test uses a memory-bounded weighted CDF comparison rather than allocating an `n × n` distribution matrix. The gradient test compares an analytical metric derivative against central finite differences instead of merely checking that a finite-difference value exists.
 
 ## License
 
-MIT License - See LICENSE file for details
-
-## References
-
-This implementation is based on the Phase 1 Specification Document for the Spectral Multipole Attention Operator (SMAO).
-
-## Acknowledgments
-
-- Eigen library for linear algebra operations
-- LAPACK/BLAS for high-performance matrix operations
-- Google Test for comprehensive testing framework
+MIT License. See the repository license file for details.

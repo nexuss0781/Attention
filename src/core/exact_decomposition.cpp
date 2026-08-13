@@ -1,54 +1,49 @@
-/**
+/*
  * @file exact_decomposition.cpp
- * @brief Implementation of exact softmax-to-Gaussian decomposition
- *
- * Implements Algorithm 1: ExactDecomposition with Kahan-compensated
- * dot products for numerical accuracy.
+ * @brief Stable softmax-to-Gaussian scalar decomposition.
  */
 
 #include "smao_phase1/core/exact_decomposition.h"
 #include "smao_phase1/core/numerical_guards.h"
+
 #include <cmath>
-#include <cstring>
+#include <limits>
 
 namespace smao {
 
 f32 kahan_dot_product(const f32* x, const f32* y, size_t n) {
-    if (n == 0) return 0.0f;
-    if (x == nullptr || y == nullptr) return 0.0f;
-
-    // Kahan compensated summation
-    f32 sum = 0.0f;
-    f32 compensation = 0.0f;  // Running compensation for lost low-order bits
-
-    for (size_t i = 0; i < n; ++i) {
-        f32 product = x[i] * y[i];
-        f32 compensated = product - compensation;
-        f32 new_sum = sum + compensated;
-        compensation = (new_sum - sum) - compensated;
-        sum = new_sum;
+    if (x == nullptr || y == nullptr || n == 0) {
+        return 0.0f;
     }
-
-    return sum;
+    f64 sum = 0.0;
+    f64 compensation = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        const f64 product = static_cast<f64>(x[i]) * static_cast<f64>(y[i]);
+        const f64 corrected = product - compensation;
+        const f64 updated = sum + corrected;
+        compensation = (updated - sum) - corrected;
+        sum = updated;
+    }
+    return static_cast<f32>(sum);
 }
 
 f32 kahan_squared_norm(const f32* x, size_t n) {
-    if (n == 0) return 0.0f;
-    if (x == nullptr) return 0.0f;
-
-    // Kahan compensated summation of squares
-    f32 sum = 0.0f;
-    f32 compensation = 0.0f;
-
-    for (size_t i = 0; i < n; ++i) {
-        f32 square = x[i] * x[i];
-        f32 compensated = square - compensation;
-        f32 new_sum = sum + compensated;
-        compensation = (new_sum - sum) - compensated;
-        sum = new_sum;
+    if (x == nullptr || n == 0) {
+        return 0.0f;
     }
-
-    return sum;
+    f64 sum = 0.0;
+    f64 compensation = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        const f64 square = static_cast<f64>(x[i]) * static_cast<f64>(x[i]);
+        const f64 corrected = square - compensation;
+        const f64 updated = sum + corrected;
+        compensation = (updated - sum) - corrected;
+        sum = updated;
+    }
+    if (!std::isfinite(sum) || sum > static_cast<f64>(std::numeric_limits<f32>::max())) {
+        return std::numeric_limits<f32>::infinity();
+    }
+    return static_cast<f32>(sum);
 }
 
 Status exact_decomposition(
@@ -64,70 +59,50 @@ Status exact_decomposition(
     f32* key_weights,
     f32* sigma_squared
 ) {
-    // Validate inputs
-    if (q == nullptr || k == nullptr) {
+    if (q == nullptr || k == nullptr || query_scales == nullptr || key_weights == nullptr ||
+        sigma_squared == nullptr || n == 0 || d == 0 || d_k == 0) {
         return Status::InvalidInput;
     }
-    if (query_scales == nullptr || key_weights == nullptr || sigma_squared == nullptr) {
-        return Status::InvalidInput;
-    }
-    if (n == 0 || d == 0 || d_k == 0) {
+    if (!std::isfinite(epsilon) || epsilon < 0.0f ||
+        !std::isfinite(log_clip_min) || !std::isfinite(log_clip_max) ||
+        log_clip_min >= log_clip_max) {
         return Status::InvalidInput;
     }
 
-    // Check for NaN/Inf in inputs
-    Status nan_check = validate_no_nan_inf(q, n * d);
-    if (nan_check != Status::OK) return nan_check;
-    
-    nan_check = validate_no_nan_inf(k, n * d);
-    if (nan_check != Status::OK) return nan_check;
+    Status status = validate_no_nan_inf(q, n * d);
+    if (status != Status::OK) return status;
+    status = validate_no_nan_inf(k, n * d);
+    if (status != Status::OK) return status;
 
-    // Compute sigma^2 = sqrt(d_k)
     *sigma_squared = std::sqrt(static_cast<f32>(d_k));
-    
-    // Compute denominator: 2 * sigma^2
-    const f32 denom = 2.0f * (*sigma_squared);
+    if (!std::isfinite(*sigma_squared) || !(*sigma_squared > 0.0f)) {
+        return Status::Overflow;
+    }
+    const f32 denominator = 2.0f * (*sigma_squared);
 
-    // Compute query scales a_i = exp(||q_i||^2 / 2*sigma^2)
+    auto compute_scale = [=](const f32* row, f32* result) -> Status {
+        const f32 squared_norm = kahan_squared_norm(row, d);
+        if (!std::isfinite(squared_norm)) {
+            return Status::Overflow;
+        }
+        const f32 exponent = clip_exponent_arg(
+            squared_norm / denominator, log_clip_min, log_clip_max);
+        const f32 scale = safe_exp(exponent);
+        if (!std::isfinite(scale) || !(scale > 0.0f)) {
+            return Status::Overflow;
+        }
+        *result = scale;
+        return Status::OK;
+    };
+
     for (size_t i = 0; i < n; ++i) {
-        const f32* q_row = q + i * d;
-        
-        // Compute squared norm with Kahan compensation
-        f32 sq_norm = kahan_squared_norm(q_row, d);
-        
-        // Compute exponent argument
-        f32 exp_arg = sq_norm / denom;
-        
-        // Clip to safe range and compute exp
-        exp_arg = clip_exponent_arg(exp_arg, log_clip_min, log_clip_max);
-        query_scales[i] = std::exp(exp_arg);
-        
-        // Check for overflow
-        if (!std::isfinite(query_scales[i])) {
-            return Status::Overflow;
-        }
+        status = compute_scale(q + i * d, query_scales + i);
+        if (status != Status::OK) return status;
     }
-
-    // Compute key weights w_j = exp(||k_j||^2 / 2*sigma^2)
     for (size_t j = 0; j < n; ++j) {
-        const f32* k_row = k + j * d;
-        
-        // Compute squared norm with Kahan compensation
-        f32 sq_norm = kahan_squared_norm(k_row, d);
-        
-        // Compute exponent argument
-        f32 exp_arg = sq_norm / denom;
-        
-        // Clip to safe range and compute exp
-        exp_arg = clip_exponent_arg(exp_arg, log_clip_min, log_clip_max);
-        key_weights[j] = std::exp(exp_arg);
-        
-        // Check for overflow
-        if (!std::isfinite(key_weights[j])) {
-            return Status::Overflow;
-        }
+        status = compute_scale(k + j * d, key_weights + j);
+        if (status != Status::OK) return status;
     }
-
     return Status::OK;
 }
 
@@ -141,16 +116,9 @@ Status exact_decomposition_aligned(
     f32* key_weights,
     f32* sigma_squared
 ) {
-    // For aligned version, use default parameters
-    constexpr f32 epsilon = 1e-6f;
-    constexpr f32 log_clip_min = -80.0f;
-    constexpr f32 log_clip_max = 80.0f;
-    
     return exact_decomposition(
-        q, k, n, d, d_k,
-        epsilon, log_clip_min, log_clip_max,
-        query_scales, key_weights, sigma_squared
-    );
+        q, k, n, d, d_k, 1e-6f, -80.0f, 80.0f,
+        query_scales, key_weights, sigma_squared);
 }
 
 } // namespace smao

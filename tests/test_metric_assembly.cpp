@@ -51,7 +51,7 @@ TEST(MetricAssemblyTest, WhiteningIsometry) {
     MetricAssemblyResult result = metric_assembly(l.data(), d);
     
     EXPECT_EQ(result.status, Status::OK);
-    EXPECT_LT(result.condition_number, 1e4f);
+    EXPECT_LE(result.condition_number, 1e4f);
     
     // Verify whitening isometry: ||W*x||^2 = x^T*M*x for random unit vectors
     std::mt19937 gen(12345);

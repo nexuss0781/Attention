@@ -1,25 +1,32 @@
-/**
+/*
  * @file whiten_coordinates.cpp
- * @brief Implementation of coordinate whitening
- *
- * Implements Algorithm 3: WhitenCoordinates
- * Applies whitening operator W to transform coordinates.
+ * @brief Implementation of coordinate whitening.
  */
 
 #include "smao_phase1/core/whiten_coordinates.h"
-#include <cstring>
+#include "smao_phase1/core/numerical_guards.h"
 
-// External BLAS declaration
-extern "C" {
-    // Single-precision matrix multiply: C = alpha*A*B + beta*C
-    void sgemm_(const char* transa, const char* transb,
-                const int* m, const int* n, const int* k,
-                const float* alpha, const float* a, const int* lda,
-                const float* b, const int* ldb,
-                const float* beta, float* c, const int* ldc);
-}
+#include <Eigen/Core>
+#include <cmath>
+#include <limits>
 
 namespace smao {
+
+namespace {
+
+bool finite_buffer(const f32* data, size_t count) {
+    if (data == nullptr && count != 0) {
+        return false;
+    }
+    for (size_t i = 0; i < count; ++i) {
+        if (!std::isfinite(data[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
 
 Status whiten_coordinates(
     const f32* x,
@@ -28,45 +35,36 @@ Status whiten_coordinates(
     size_t d,
     f32* x_whitened
 ) {
-    if (x == nullptr || whitening_w == nullptr || x_whitened == nullptr) {
+    if (x == nullptr || whitening_w == nullptr || x_whitened == nullptr || n == 0 || d == 0) {
         return Status::InvalidInput;
     }
-    if (n == 0 || d == 0) {
+    if (n > static_cast<size_t>(std::numeric_limits<Eigen::Index>::max()) ||
+        d > static_cast<size_t>(std::numeric_limits<Eigen::Index>::max())) {
         return Status::InvalidInput;
     }
-    if (n > static_cast<size_t>(std::numeric_limits<int>::max()) ||
-        d > static_cast<size_t>(std::numeric_limits<int>::max())) {
-        return Status::InvalidInput;
+    if (!finite_buffer(x, n * d) || !finite_buffer(whitening_w, d * d)) {
+        return Status::NaNInput;
     }
-    
-    int m = static_cast<int>(n);  // rows of A and C
-    int k = static_cast<int>(d);  // cols of A and rows of B
-    int n_cols = static_cast<int>(d);  // cols of B and C
-    
-    float alpha = 1.0f;
-    float beta = 0.0f;
-    
-    // X_whitened = X * W
-    // X is m x k, W is k x n_cols, result is m x n_cols
-    // In BLAS: C = alpha*A*B + beta*C
-    // A = X (m x k), B = W (k x n_cols), C = X_whitened (m x n_cols)
-    
-    char transa = 'N';  // No transpose for A
-    char transb = 'N';  // No transpose for B
-    
-    sgemm_(&transa, &transb, &m, &n_cols, &k,
-           &alpha, x, &m,
-           whitening_w, &k,
-           &beta, x_whitened, &m);
-    
-    return Status::OK;
+
+    using RowMajorMap = Eigen::Map<const MatrixXf>;
+    using MutableRowMajorMap = Eigen::Map<MatrixXf>;
+    const Eigen::Index rows = static_cast<Eigen::Index>(n);
+    const Eigen::Index cols = static_cast<Eigen::Index>(d);
+    RowMajorMap x_map(x, rows, cols);
+    RowMajorMap w_map(whitening_w, cols, cols);
+    MutableRowMajorMap output_map(x_whitened, rows, cols);
+    output_map.noalias() = x_map * w_map;
+
+    return finite_buffer(x_whitened, n * d) ? Status::OK : Status::Overflow;
 }
 
 MatrixXf whiten_coordinates_eigen(
     const MatrixXf& x,
     const MatrixXf& whitening_w
 ) {
-    // X_tilde = X * W
+    if (x.cols() != whitening_w.rows()) {
+        return MatrixXf();
+    }
     return x * whitening_w;
 }
 
@@ -79,19 +77,11 @@ Status whiten_coordinates_batch(
     f32* q_whitened,
     f32* k_whitened
 ) {
-    // Whiten queries
     Status status = whiten_coordinates(q, whitening_w, n, d, q_whitened);
     if (status != Status::OK) {
         return status;
     }
-    
-    // Whiten keys
-    status = whiten_coordinates(k, whitening_w, n, d, k_whitened);
-    if (status != Status::OK) {
-        return status;
-    }
-    
-    return Status::OK;
+    return whiten_coordinates(k, whitening_w, n, d, k_whitened);
 }
 
 bool verify_whitening_isometry(
@@ -101,43 +91,41 @@ bool verify_whitening_isometry(
     size_t num_samples,
     f32 max_relative_error
 ) {
-    if (d == 0 || num_samples == 0) {
+    if (d == 0 || num_samples == 0 || whitening_w.rows() != static_cast<Eigen::Index>(d) ||
+        whitening_w.cols() != static_cast<Eigen::Index>(d) ||
+        metric_m.rows() != static_cast<Eigen::Index>(d) ||
+        metric_m.cols() != static_cast<Eigen::Index>(d) ||
+        !std::isfinite(max_relative_error) || max_relative_error < 0.0f) {
         return false;
     }
-    
-    // Generate random unit vectors and verify isometry
+    if (!whitening_w.allFinite() || !metric_m.allFinite()) {
+        return false;
+    }
+
     for (size_t sample = 0; sample < num_samples; ++sample) {
-        // Generate random vector
-        VectorXf x(d);
+        VectorXf x(static_cast<Eigen::Index>(d));
         for (size_t i = 0; i < d; ++i) {
-            // Simple pseudo-random based on sample and index
-            x(i) = static_cast<f32>(std::sin(sample * 1000.0 + i * 0.5) * 0.5 + 0.5);
+            x(static_cast<Eigen::Index>(i)) = static_cast<f32>(
+                std::sin(static_cast<f64>(sample) * 1000.0 + static_cast<f64>(i) * 0.5) * 0.5 + 0.5);
         }
-        
-        // Normalize to unit vector
-        f32 norm = x.norm();
-        if (norm > 1e-10f) {
-            x /= norm;
-        } else {
-            continue;  // Skip degenerate case
+        const f32 norm = x.norm();
+        if (!(norm > 0.0f) || !std::isfinite(norm)) {
+            return false;
         }
-        
-        // Compute ||Wx||^2
-        VectorXf wx = whitening_w * x;
-        f32 wx_norm_sq = wx.squaredNorm();
-        
-        // Compute x^T M x
-        f32 xMx = x.transpose() * metric_m * x;
-        
-        // Check relative error
-        f32 diff = std::abs(wx_norm_sq - xMx);
-        f32 relative_error = (xMx > 1e-10f) ? diff / xMx : diff;
-        
+        x /= norm;
+
+        const VectorXf wx = whitening_w * x;
+        const f32 wx_norm_sq = wx.squaredNorm();
+        const f32 x_m_x = (x.transpose() * metric_m * x)(0, 0);
+        if (!std::isfinite(wx_norm_sq) || !std::isfinite(x_m_x)) {
+            return false;
+        }
+        const f32 diff = std::abs(wx_norm_sq - x_m_x);
+        const f32 relative_error = x_m_x > 1e-10f ? diff / x_m_x : diff;
         if (relative_error > max_relative_error) {
             return false;
         }
     }
-    
     return true;
 }
 

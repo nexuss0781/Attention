@@ -1,70 +1,58 @@
-/**
+/*
  * @file numerical_guards.cpp
- * @brief Implementation of numerical stability guards
- *
- * Implements Contract 3.1, 3.2, and 3.3:
- * - Exponent range enforcement
- * - Condition number bounds
- * - NaN/Inf propagation prevention
+ * @brief Numerical stability guards and validation functions.
  */
 
 #include "smao_phase1/core/numerical_guards.h"
-#include <cstring>
+
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <limits>
 
 namespace smao {
 
 Status validate_no_nan_inf(const f32* data, size_t n) {
-    if (data == nullptr) {
+    if (data == nullptr && n != 0) {
         return Status::InvalidInput;
     }
-    
     for (size_t i = 0; i < n; ++i) {
-        if (std::isnan(data[i])) {
+        if (std::isnan(data[i]) || std::isinf(data[i])) {
             return Status::NaNInput;
         }
-        if (std::isinf(data[i])) {
-            return Status::NaNInput;  // Treat Inf as NaN for consistency
-        }
     }
-    
     return Status::OK;
 }
 
 f32 safe_exp(f32 arg, f32 use_log_space_threshold) {
-    // Direct computation for safe range
-    if (arg >= EXP_ARG_MIN_F32 && arg <= EXP_ARG_MAX_F32) {
-        return std::exp(arg);
+    if (!std::isfinite(arg) || !std::isfinite(use_log_space_threshold) ||
+        use_log_space_threshold <= 0.0f) {
+        return std::numeric_limits<f32>::quiet_NaN();
     }
-    
-    // Use log-space computation for extreme values
-    if (arg > use_log_space_threshold) {
-        // For very large values, compute in log-space
-        f32 log_result = arg;  // log(exp(arg)) = arg
-        // Clip to representable range
-        if (log_result > 88.0f) {
-            return std::numeric_limits<f32>::infinity();
-        }
-        return std::exp(log_result);
+
+    constexpr f32 log_max_f32 = 88.72283905206835f;
+    if (arg >= log_max_f32 || arg >= use_log_space_threshold) {
+        return std::numeric_limits<f32>::max();
     }
-    
-    if (arg < -use_log_space_threshold) {
-        // For very negative values, return 0 (underflow)
+    if (arg <= -use_log_space_threshold) {
         return 0.0f;
     }
-    
-    // Default case
     return std::exp(arg);
 }
 
 f32 log_sum_exp(f32 a, f32 b) {
-    // log(exp(a) + exp(b)) = max(a,b) + log(1 + exp(-|a-b|))
-    if (a > b) {
-        return a + std::log1p(std::exp(b - a));
-    } else {
-        return b + std::log1p(std::exp(a - b));
+    if (std::isnan(a) || std::isnan(b)) {
+        return std::numeric_limits<f32>::quiet_NaN();
     }
+    if (a == -std::numeric_limits<f32>::infinity()) {
+        return b;
+    }
+    if (b == -std::numeric_limits<f32>::infinity()) {
+        return a;
+    }
+    const f32 maximum = std::max(a, b);
+    return maximum + std::log1p(std::exp(std::min(a, b) - maximum));
 }
 
 f32 enforce_condition_number_bound(
@@ -72,55 +60,44 @@ f32 enforce_condition_number_bound(
     size_t d,
     f32 kappa_max
 ) {
-    if (eigenvalues == nullptr || d == 0 || kappa_max <= 1.0f) {
+    if (eigenvalues == nullptr || d == 0 || !std::isfinite(kappa_max) || kappa_max <= 1.0f) {
         return 0.0f;
     }
-    
-    // Find min and max eigenvalues
-    f32 lambda_min = eigenvalues[0];
-    f32 lambda_max = eigenvalues[0];
-    
-    for (size_t i = 1; i < d; ++i) {
-        if (eigenvalues[i] < lambda_min) lambda_min = eigenvalues[i];
-        if (eigenvalues[i] > lambda_max) lambda_max = eigenvalues[i];
+
+    f32 lambda_min = std::numeric_limits<f32>::infinity();
+    f32 lambda_max = 0.0f;
+    for (size_t i = 0; i < d; ++i) {
+        if (!std::isfinite(eigenvalues[i])) {
+            return 0.0f;
+        }
+        lambda_min = std::min(lambda_min, eigenvalues[i]);
+        lambda_max = std::max(lambda_max, eigenvalues[i]);
     }
-    
-    // Enforce minimum eigenvalue threshold
-    f32 epsilon = LAMBDA_MIN_THRESHOLD;
-    if (lambda_min < epsilon) {
-        f32 shift = epsilon - lambda_min;
+
+    if (!(lambda_max > 0.0f)) {
+        return 0.0f;
+    }
+    if (lambda_min < LAMBDA_MIN_THRESHOLD) {
+        const f32 shift = LAMBDA_MIN_THRESHOLD - lambda_min;
         for (size_t i = 0; i < d; ++i) {
             eigenvalues[i] += shift;
         }
-        lambda_min = epsilon;
+        lambda_min += shift;
         lambda_max += shift;
     }
-    
-    // Compute current condition number
-    f32 kappa = lambda_max / lambda_min;
-    
-    // If condition number exceeds bound, project eigenvalues
-    if (kappa > kappa_max) {
-        // Compute target minimum eigenvalue
-        f32 lambda_min_target = lambda_max / kappa_max;
-        
-        // Clip eigenvalues to [lambda_min_target, lambda_max]
-        for (size_t i = 0; i < d; ++i) {
-            if (eigenvalues[i] < lambda_min_target) {
-                eigenvalues[i] = lambda_min_target;
-            }
-            // Also cap at lambda_max (shouldn't be necessary but for safety)
-            if (eigenvalues[i] > lambda_max) {
-                eigenvalues[i] = lambda_max;
-            }
-        }
-        
-        // Update lambda_min and kappa
-        lambda_min = lambda_min_target;
-        kappa = kappa_max;
+
+    const f32 target_min = std::max(LAMBDA_MIN_THRESHOLD, lambda_max / kappa_max);
+    for (size_t i = 0; i < d; ++i) {
+        eigenvalues[i] = std::max(eigenvalues[i], target_min);
     }
-    
-    return kappa;
+
+    lambda_min = eigenvalues[0];
+    lambda_max = eigenvalues[0];
+    for (size_t i = 1; i < d; ++i) {
+        lambda_min = std::min(lambda_min, eigenvalues[i]);
+        lambda_max = std::max(lambda_max, eigenvalues[i]);
+    }
+    return lambda_max / lambda_min;
 }
 
 bool validate_condition_number(
@@ -128,72 +105,64 @@ bool validate_condition_number(
     size_t d,
     f32 kappa_max
 ) {
-    if (eigenvalues == nullptr || d == 0) {
+    if (eigenvalues == nullptr || d == 0 || !std::isfinite(kappa_max) || kappa_max <= 1.0f) {
         return false;
     }
-    
-    f32 lambda_min = eigenvalues[0];
-    f32 lambda_max = eigenvalues[0];
-    
-    for (size_t i = 1; i < d; ++i) {
-        if (eigenvalues[i] < lambda_min) lambda_min = eigenvalues[i];
-        if (eigenvalues[i] > lambda_max) lambda_max = eigenvalues[i];
+
+    f32 lambda_min = std::numeric_limits<f32>::infinity();
+    f32 lambda_max = 0.0f;
+    for (size_t i = 0; i < d; ++i) {
+        if (!std::isfinite(eigenvalues[i]) || !(eigenvalues[i] > 0.0f)) {
+            return false;
+        }
+        lambda_min = std::min(lambda_min, eigenvalues[i]);
+        lambda_max = std::max(lambda_max, eigenvalues[i]);
     }
-    
-    if (lambda_min <= 0.0f) {
-        return false;
-    }
-    
-    f32 kappa = lambda_max / lambda_min;
-    return kappa <= kappa_max;
+    return lambda_max / lambda_min <= kappa_max;
 }
 
 int32_t ulp_difference(f32 a, f32 b) {
-    // Handle special cases
-    if (std::isnan(a) || std::isnan(b)) {
+    if (!std::isfinite(a) || !std::isfinite(b)) {
         return std::numeric_limits<int32_t>::max();
-    }
-    if (std::isinf(a) && std::isinf(b)) {
-        return (a == b) ? 0 : std::numeric_limits<int32_t>::max();
     }
     if (a == b) {
         return 0;
     }
-    
-    // Reinterpret as integers
-    union FloatInt {
-        f32 f;
-        int32_t i;
+
+    auto ordered_bits = [](f32 value) -> uint32_t {
+        uint32_t bits = 0;
+        static_assert(sizeof(bits) == sizeof(value));
+        std::memcpy(&bits, &value, sizeof(value));
+        if ((bits & 0x80000000u) != 0u) {
+            return ~bits + 1u;
+        }
+        return bits | 0x80000000u;
     };
-    
-    FloatInt fa, fb;
-    fa.f = a;
-    fb.f = b;
-    
-    // Handle sign bit for proper ordering
-    if (fa.i < 0) fa.i = 0x80000000 - fa.i;
-    if (fb.i < 0) fb.i = 0x80000000 - fb.i;
-    
-    return std::abs(fa.i - fb.i);
+
+    const uint32_t ia = ordered_bits(a);
+    const uint32_t ib = ordered_bits(b);
+    const uint64_t difference = ia > ib ? static_cast<uint64_t>(ia - ib) : static_cast<uint64_t>(ib - ia);
+    return difference > static_cast<uint64_t>(std::numeric_limits<int32_t>::max())
+        ? std::numeric_limits<int32_t>::max()
+        : static_cast<int32_t>(difference);
 }
 
 bool approx_equal_ulp(f32 a, f32 b, int32_t max_ulp) {
-    return ulp_difference(a, b) <= max_ulp;
+    return max_ulp >= 0 && ulp_difference(a, b) <= max_ulp;
 }
 
 bool approx_equal_rel(f32 a, f32 b, f32 rel_tol) {
-    if (a == b) return true;
-    
-    f32 abs_a = std::abs(a);
-    f32 abs_b = std::abs(b);
-    f32 diff = std::abs(a - b);
-    
-    if (abs_a == 0.0f || abs_b == 0.0f) {
-        // One of them is zero, use absolute tolerance
-        return diff < rel_tol;
+    if (!std::isfinite(a) || !std::isfinite(b) || !std::isfinite(rel_tol) || rel_tol < 0.0f) {
+        return false;
     }
-    
-    return diff / std::max(abs_a, abs_b) < rel_tol;
+    if (a == b) {
+        return true;
+    }
+    const f32 scale = std::max(std::abs(a), std::abs(b));
+    if (scale == 0.0f) {
+        return true;
+    }
+    return std::abs(a - b) <= rel_tol * scale;
 }
 
 } // namespace smao

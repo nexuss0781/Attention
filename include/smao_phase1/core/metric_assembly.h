@@ -92,7 +92,7 @@ Status symmetric_matrix_sqrt(
  * @param kappa_max Maximum condition number
  * @return Actual condition number after projection
  */
-f32 enforce_condition_number(
+f32 enforce_condition_number_bound(
     f32* eigenvalues,
     size_t d,
     f32 kappa_max
