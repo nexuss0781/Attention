@@ -84,6 +84,35 @@ Status exact_decomposition(
  * @param sigma_squared Output: bandwidth
  * @return Status code
  */
+// Fast path for callers that have already validated every input buffer.
+Status exact_decomposition_pair_prevalidated(
+    const f32* q,
+    const f32* k,
+    size_t n,
+    size_t d,
+    size_t d_k,
+    f32 epsilon,
+    f32 log_clip_min,
+    f32 log_clip_max,
+    f32* query_scales,
+    f32* key_weights,
+    f32* sigma_squared
+);
+
+Status exact_decomposition_prevalidated(
+    const f32* q,
+    const f32* k,
+    size_t n,
+    size_t d,
+    size_t d_k,
+    f32 epsilon,
+    f32 log_clip_min,
+    f32 log_clip_max,
+    f32* query_scales,
+    f32* key_weights,
+    f32* sigma_squared
+);
+
 Status exact_decomposition_aligned(
     const f32* q,
     const f32* k,

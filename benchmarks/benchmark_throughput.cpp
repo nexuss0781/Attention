@@ -79,8 +79,10 @@ bool benchmark_end_to_end(bool full) {
         input.q = q.data(); input.k = k.data(); input.v = v.data(); input.l = l.data();
         input.n = n; input.d = d; input.d_v = d; input.precision = Precision::F32;
 
+        Phase1Output output;
+        phase1_forward_into(input, output);
         const auto start = std::chrono::steady_clock::now();
-        Phase1Output output = phase1_forward(input);
+        phase1_forward_into(input, output);
         const auto end = std::chrono::steady_clock::now();
         const double milliseconds = std::chrono::duration<double, std::milli>(end - start).count();
         const double tokens_per_second = static_cast<double>(n) / std::max(milliseconds / 1000.0, 1e-12);

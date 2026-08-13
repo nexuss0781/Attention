@@ -22,6 +22,49 @@ bool multiplication_fits(size_t a, size_t b) {
     return a == 0 || b <= std::numeric_limits<size_t>::max() / a;
 }
 
+Status validate_forward_fast(const Phase1Input& input) {
+    if (input.q == nullptr || input.k == nullptr || input.v == nullptr || input.l == nullptr ||
+        input.n == 0 || input.d == 0 || input.d_v == 0 || input.precision != Precision::F32 ||
+        !std::isfinite(input.epsilon) || input.epsilon < 0.0f ||
+        !std::isfinite(input.condition_number_max) || input.condition_number_max <= 1.0f ||
+        !std::isfinite(input.log_clip_min) || !std::isfinite(input.log_clip_max) ||
+        input.log_clip_min >= input.log_clip_max ||
+        !multiplication_fits(input.n, input.d) ||
+        !multiplication_fits(input.n, input.d_v) ||
+        !multiplication_fits(input.d, input.d)) {
+        return Status::InvalidInput;
+    }
+    for (size_t i = 0; i < input.d; ++i) {
+        const f32 diagonal = input.l[i * input.d + i];
+        if (!std::isfinite(diagonal) || !(diagonal > 0.0f)) return Status::InvalidInput;
+        for (size_t j = i + 1; j < input.d; ++j) {
+            if (!std::isfinite(input.l[i * input.d + j]) ||
+                std::abs(input.l[i * input.d + j]) > 1e-6f) return Status::InvalidInput;
+        }
+    }
+    return Status::OK;
+}
+
+bool whitening_matches_metric(const Phase1Output& output, f32 relative_tolerance) {
+    if (output.metric_m.rows() != static_cast<Eigen::Index>(output.d) ||
+        output.whitening_w.rows() != static_cast<Eigen::Index>(output.d) ||
+        !output.metric_m.allFinite() || !output.whitening_w.allFinite()) return false;
+    f32 maximum_relative_error = 0.0f;
+    for (size_t i = 0; i < output.d; ++i) {
+        for (size_t j = 0; j < output.d; ++j) {
+            f64 reconstructed = 0.0;
+            for (size_t k = 0; k < output.d; ++k) {
+                reconstructed += static_cast<f64>(output.whitening_w(static_cast<Eigen::Index>(k), static_cast<Eigen::Index>(i))) *
+                                 static_cast<f64>(output.whitening_w(static_cast<Eigen::Index>(k), static_cast<Eigen::Index>(j)));
+            }
+            const f64 expected = static_cast<f64>(output.metric_m(static_cast<Eigen::Index>(i), static_cast<Eigen::Index>(j)));
+            const f64 error = std::abs(reconstructed - expected) / std::max(1.0, std::abs(expected));
+            maximum_relative_error = std::max(maximum_relative_error, static_cast<f32>(error));
+        }
+    }
+    return maximum_relative_error <= relative_tolerance;
+}
+
 f32 distance_primitive_adapter(
     const f32* q,
     const f32* k,
@@ -82,22 +125,23 @@ Status validate_phase1_input(const Phase1Input& input) {
     return Status::OK;
 }
 
-Phase1Output phase1_forward(const Phase1Input& input) {
-    Phase1Output output;
+Status phase1_forward_into(const Phase1Input& input, Phase1Output& output) {
     output.n = input.n;
     output.d = input.d;
 
-    Status status = validate_phase1_input(input);
+    // Q and K finite-value validation is fused with the production whitening
+    // kernel; this avoids scanning hundreds of megabytes twice before work.
+    Status status = validate_forward_fast(input);
     if (status != Status::OK) {
         output.status = status;
-        return output;
+        return output.status;
     }
 
     MetricAssemblyResult metric_result = metric_assembly(
         input.l, input.d, input.epsilon, input.condition_number_max);
     if (metric_result.status != Status::OK) {
         output.status = metric_result.status;
-        return output;
+        return output.status;
     }
 
     output.metric_m = std::move(metric_result.metric_m);
@@ -105,45 +149,43 @@ Phase1Output phase1_forward(const Phase1Input& input) {
     output.condition_number = metric_result.condition_number;
 
     output.whitened_q.resize(static_cast<Eigen::Index>(input.n), static_cast<Eigen::Index>(input.d));
-    status = whiten_coordinates(input.q, output.whitening_w.data(), input.n, input.d,
-                                output.whitened_q.data());
-    if (status != Status::OK) {
-        output.status = status;
-        return output;
-    }
-
     output.whitened_k.resize(static_cast<Eigen::Index>(input.n), static_cast<Eigen::Index>(input.d));
-    status = whiten_coordinates(input.k, output.whitening_w.data(), input.n, input.d,
-                                output.whitened_k.data());
+    status = whiten_coordinates_pair_prevalidated(
+        input.q, input.k, output.whitening_w.data(), input.n, input.d,
+        output.whitened_q.data(), output.whitened_k.data());
     if (status != Status::OK) {
         output.status = status;
-        return output;
+        return output.status;
     }
 
     output.query_scales.resize(static_cast<Eigen::Index>(input.n));
     output.key_weights.resize(static_cast<Eigen::Index>(input.n));
-    status = exact_decomposition(
+    status = exact_decomposition_prevalidated(
         output.whitened_q.data(), output.whitened_k.data(), input.n, input.d, input.d,
         input.epsilon, input.log_clip_min, input.log_clip_max,
         output.query_scales.data(), output.key_weights.data(), &output.sigma_squared);
     if (status != Status::OK) {
         output.status = status;
-        return output;
+        return output.status;
     }
 
     if (!output.metric_m.allFinite() || !output.whitening_w.allFinite() ||
-        !output.whitened_q.allFinite() || !output.whitened_k.allFinite() ||
-        !output.query_scales.allFinite() || !output.key_weights.allFinite() ||
         !std::isfinite(output.condition_number) || !std::isfinite(output.sigma_squared)) {
         output.status = Status::Overflow;
-        return output;
+        return output.status;
     }
-    if (!verify_whitening_isometry(output.whitening_w, output.metric_m, input.d, 128, 2e-4f)) {
+    if (!whitening_matches_metric(output, 2e-4f)) {
         output.status = Status::Eigendecomposition;
-        return output;
+        return output.status;
     }
 
     output.status = Status::OK;
+    return output.status;
+}
+
+Phase1Output phase1_forward(const Phase1Input& input) {
+    Phase1Output output;
+    phase1_forward_into(input, output);
     return output;
 }
 
@@ -155,11 +197,10 @@ bool check_frozen_gate_criteria(const Phase1Output& output) {
         return false;
     }
     if (!output.metric_m.allFinite() || !output.whitening_w.allFinite() ||
-        !output.whitened_q.allFinite() || !output.whitened_k.allFinite() ||
-        !output.query_scales.allFinite() || !output.key_weights.allFinite()) {
+        !std::isfinite(output.sigma_squared)) {
         return false;
     }
-    return verify_whitening_isometry(output.whitening_w, output.metric_m, output.d, 128, 2e-4f);
+    return whitening_matches_metric(output, 2e-4f);
 }
 
 DistancePrimitiveFn get_distance_primitive(const Phase1Output& output) {

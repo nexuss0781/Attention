@@ -5,6 +5,7 @@
 
 #include "smao_phase1/core/numerical_guards.h"
 
+#include <Eigen/Core>
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -14,15 +15,13 @@
 namespace smao {
 
 Status validate_no_nan_inf(const f32* data, size_t n) {
-    if (data == nullptr && n != 0) {
+    if (data == nullptr && n != 0) return Status::InvalidInput;
+    if (n == 0) return Status::OK;
+    if (n > static_cast<size_t>(std::numeric_limits<Eigen::Index>::max())) {
         return Status::InvalidInput;
     }
-    for (size_t i = 0; i < n; ++i) {
-        if (std::isnan(data[i]) || std::isinf(data[i])) {
-            return Status::NaNInput;
-        }
-    }
-    return Status::OK;
+    const Eigen::Map<const VectorXf> values(data, static_cast<Eigen::Index>(n));
+    return values.allFinite() ? Status::OK : Status::NaNInput;
 }
 
 f32 safe_exp(f32 arg, f32 use_log_space_threshold) {

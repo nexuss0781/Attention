@@ -95,6 +95,26 @@ TEST(Phase1ForwardTest, FrozenGateCriteria) {
     EXPECT_GE(distance, 0.0f);
 }
 
+TEST(Phase1ForwardTest, ReusesOutputWorkspace) {
+    constexpr size_t n = 64;
+    constexpr size_t d = 8;
+    std::vector<f32> q, k, v, l;
+    const Phase1Input input = make_valid_input(q, k, v, l, n, d);
+
+    Phase1Output output;
+    ASSERT_EQ(phase1_forward_into(input, output), Status::OK);
+    const f32* q_workspace = output.whitened_q.data();
+    const f32* k_workspace = output.whitened_k.data();
+    const f32* query_workspace = output.query_scales.data();
+    const f32* key_workspace = output.key_weights.data();
+
+    ASSERT_EQ(phase1_forward_into(input, output), Status::OK);
+    EXPECT_EQ(output.whitened_q.data(), q_workspace);
+    EXPECT_EQ(output.whitened_k.data(), k_workspace);
+    EXPECT_EQ(output.query_scales.data(), query_workspace);
+    EXPECT_EQ(output.key_weights.data(), key_workspace);
+}
+
 TEST(Phase1ForwardTest, InvalidInputs) {
     constexpr size_t n = 4;
     constexpr size_t d = 2;

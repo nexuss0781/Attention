@@ -29,6 +29,9 @@ namespace smao {
  */
 Phase1Output phase1_forward(const Phase1Input& input);
 
+// Reuse an existing output allocation for steady-state execution.
+Status phase1_forward_into(const Phase1Input& input, Phase1Output& output);
+
 /**
  * @brief Validate Phase 1 input parameters
  *

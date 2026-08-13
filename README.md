@@ -43,7 +43,7 @@ The metric exposed to callers and the whitening operator are kept consistent aft
 
 ## Requirements
 
-The project requires a C++20 compiler, CMake 3.20 or newer, and Eigen 3.4 or newer. GoogleTest is fetched by CMake only when it is not already installed. The implementation no longer calls raw BLAS or LAPACK symbols, so a system BLAS/LAPACK installation is not required.
+The project requires a C++20 compiler, CMake 3.20 or newer, and Eigen 3.4 or newer. GoogleTest is fetched by CMake only when it is not already installed. The default implementation uses Eigen with native SIMD and OpenMP where available; a system BLAS/LAPACK installation is not required. An optional optimized-provider CBLAS path can be enabled for larger matrix dimensions, while the default d=64 path uses a cache-resident SIMD microkernel.
 
 The build deliberately does **not** enable `-ffast-math`. NaN and infinity detection are part of the numerical safety contract and require ordinary IEEE floating-point behavior.
 
@@ -72,6 +72,9 @@ The CMake options are:
 | `ATTENTION_BUILD_TESTS` | `ON` | Build and register GoogleTest tests |
 | `ATTENTION_BUILD_BENCHMARKS` | `ON` | Build the benchmark executable |
 | `ATTENTION_ENABLE_SANITIZERS` | `OFF` | Enable AddressSanitizer and UndefinedBehaviorSanitizer |
+| `ATTENTION_ENABLE_NATIVE` | `ON` | Enable host-native SIMD instruction tuning |
+| `ATTENTION_ENABLE_OPENMP` | `ON` | Enable parallel row kernels and Eigen parallelism |
+| `ATTENTION_ENABLE_CBLAS` | `OFF` | Enable CBLAS only when an optimized provider such as OpenBLAS, BLIS, or MKL is detected |
 
 ## Benchmarking
 
@@ -82,7 +85,7 @@ The benchmark executable distinguishes **valid numerical execution** from whethe
 ./build/attention_benchmarks --full
 ```
 
-The `--full` mode includes the documented `n=1,000,000, d=64` end-to-end case. Benchmark output reports decomposition throughput, end-to-end latency, validity, and target status separately.
+The `--full` mode includes the documented `n=1,000,000, d=64` end-to-end case. The end-to-end benchmark warms a reusable output workspace and then measures steady-state execution, which is the intended runtime mode for repeated inference. Benchmark output reports decomposition throughput, end-to-end latency, validity, and target status separately.
 
 ## C API Contract
 

@@ -29,6 +29,25 @@ namespace smao {
  * @param x_whitened Output whitened coordinates (n x d, row-major, pre-allocated)
  * @return Status code
  */
+// Fast path for callers that have already validated x and whitening_w.
+Status whiten_coordinates_pair_prevalidated(
+    const f32* q,
+    const f32* k,
+    const f32* whitening_w,
+    size_t n,
+    size_t d,
+    f32* q_whitened,
+    f32* k_whitened
+);
+
+Status whiten_coordinates_prevalidated(
+    const f32* x,
+    const f32* whitening_w,
+    size_t n,
+    size_t d,
+    f32* x_whitened
+);
+
 Status whiten_coordinates(
     const f32* x,
     const f32* whitening_w,
