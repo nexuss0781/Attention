@@ -1,0 +1,92 @@
+{
+  "format": "attention.training_curriculum.v1",
+  "tokenizer_version": "attention.byte_utf8.v1",
+  "status": "dataset-selection-complete-training-not-started",
+  "stages": [
+    {
+      "stage_id": "stage0_debug",
+      "dataset_id": "fineweb2_small_reviewed_subset",
+      "dataset_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-2",
+      "license": "ODC-BY-1.0-source-terms-review-required",
+      "purpose": "pipeline_and_loss_debugging",
+      "language_filter": "small_fixed_subset",
+      "evaluation_only": false,
+      "parent_checkpoint": null,
+      "output_checkpoint": "stage0_debug"
+    },
+    {
+      "stage_id": "stage1_general",
+      "dataset_id": "fineweb2_english_subset",
+      "dataset_url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-2",
+      "license": "ODC-BY-1.0-source-terms-review-required",
+      "purpose": "general_language_continued_pretraining",
+      "language_filter": "english",
+      "evaluation_only": false,
+      "parent_checkpoint": "stage0_debug",
+      "output_checkpoint": "stage1_general"
+    },
+    {
+      "stage_id": "stage2_amharic",
+      "dataset_id": "addisai_wikipedia_amharic",
+      "dataset_url": "https://huggingface.co/datasets/addisai/wikipedia-amharic",
+      "license": "Apache-2.0-source-provenance-review-required",
+      "purpose": "amharic_continued_pretraining",
+      "language_filter": "amharic",
+      "evaluation_only": false,
+      "parent_checkpoint": "stage1_general",
+      "output_checkpoint": "stage2_amharic"
+    },
+    {
+      "stage_id": "stage3_oasst",
+      "dataset_id": "openassistant_oasst1_filtered",
+      "dataset_url": "https://huggingface.co/datasets/OpenAssistant/oasst1",
+      "license": "Apache-2.0-source-content-review-required",
+      "purpose": "supervised_conversational_finetuning",
+      "language_filter": "selected_supported_languages",
+      "evaluation_only": false,
+      "parent_checkpoint": "stage2_amharic",
+      "output_checkpoint": "stage3_oasst"
+    },
+    {
+      "stage_id": "stage4_aya",
+      "dataset_id": "aya_dataset_language_filtered",
+      "dataset_url": "https://huggingface.co/collections/CohereLabs/aya-datasets",
+      "license": "exact_release_metadata_required_before_use",
+      "purpose": "multilingual_instruction_finetuning",
+      "language_filter": "manifest_selected_languages_including_amharic_if_available",
+      "evaluation_only": false,
+      "parent_checkpoint": "stage3_oasst",
+      "output_checkpoint": "stage4_aya"
+    },
+    {
+      "stage_id": "evaluation_pg19",
+      "dataset_id": "pg19_held_out",
+      "dataset_url": "https://github.com/google-deepmind/pg19",
+      "license": "benchmark_provenance_and_jurisdiction_review_required",
+      "purpose": "held_out_long_context_evaluation",
+      "language_filter": "english_historical_text",
+      "evaluation_only": true,
+      "parent_checkpoint": null,
+      "output_checkpoint": null
+    },
+    {
+      "stage_id": "evaluation_aya_suite",
+      "dataset_id": "aya_evaluation_suite",
+      "dataset_url": "https://huggingface.co/collections/CohereLabs/aya-datasets",
+      "license": "exact_release_metadata_required_before_use",
+      "purpose": "multilingual_instruction_evaluation",
+      "language_filter": "manifest_selected_languages",
+      "evaluation_only": true,
+      "parent_checkpoint": null,
+      "output_checkpoint": null
+    }
+  ],
+  "global_gates": {
+    "training_requires_approved_source_manifest": true,
+    "evaluation_splits_never_enter_training": true,
+    "checkpoint_parent_required_for_stage_gt_zero": true,
+    "tokenizer_metadata_must_match_parent": true,
+    "license_review_required": true,
+    "no_o_n_squared_token_pair_storage": true
+  }
+}
