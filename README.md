@@ -2,7 +2,7 @@
 
 Attention Phase 1 is a C++20 numerical kernel for metric-aware attention geometry. It assembles a positive-definite learned metric, computes a symmetric whitening operator, transforms query and key coordinates, and evaluates the scalar Gaussian decomposition factors required by later attention stages.
 
-The current release is intentionally a **numerical foundation**, not a complete transformer or language model. It does not train parameters, tokenize text, consume values into normalized attention outputs, or provide a language-generation runtime.
+The current release is intentionally a **numerical foundation plus the first transformer-architecture configuration layer**, not a complete transformer or language model. It does not yet execute transformer blocks, train parameters, tokenize text, consume values into normalized attention outputs, or provide a language-generation runtime. The new `attention::TransformerConfig` component validates the planned architecture shape and computes deterministic parameter and activation-memory estimates.
 
 ## Pipeline
 
@@ -24,6 +24,8 @@ The metric exposed to callers and the whitening operator are kept consistent aft
 ```text
 .
 ├── CMakeLists.txt
+├── include/attention/
+│   └── transformer_config.h
 ├── include/smao_phase1/
 │   ├── smao_phase1.h
 │   └── core/
@@ -110,7 +112,7 @@ On failure, the forward API returns an error before allocating or copying result
 
 ## Tests
 
-The repository includes 31 registered tests covering algebraic decomposition, overflow handling, adversarial inputs, compensated accumulation, metric assembly, eigendecomposition, whitening, anisotropic-distance consistency, numerical guards, forward integration, analytical-versus-finite-difference metric gradients, and the public C API.
+The repository includes 38 registered tests covering algebraic decomposition, overflow handling, adversarial inputs, compensated accumulation, metric assembly, eigendecomposition, whitening, anisotropic-distance consistency, numerical guards, forward integration, analytical-versus-finite-difference metric gradients, and the public C API.
 
 The distribution-preservation test uses a memory-bounded weighted CDF comparison rather than allocating an `n × n` distribution matrix. The gradient test compares an analytical metric derivative against central finite differences instead of merely checking that a finite-difference value exists.
 

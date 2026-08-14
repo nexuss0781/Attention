@@ -214,14 +214,14 @@ Attention is complete only when all of the following are true:
 
 ### 2.1 Define architecture configuration
 
-- [ ] Define the architecture configuration schema.
-- [ ] Include vocabulary size, context length, layer count, hidden size, attention-head count, feed-forward size, normalization type, activation type, dropout policy, and precision.
-- [ ] Validate divisibility requirements such as hidden size by head count.
-- [ ] Calculate parameter count automatically.
-- [ ] Calculate estimated activation memory automatically.
-- [ ] Calculate estimated checkpoint size automatically.
-- [ ] Calculate estimated inference memory automatically.
-- [ ] Version architecture configurations.
+- [x] Define the architecture configuration schema in `include/attention/transformer_config.h`.
+- [x] Include vocabulary size, context length, layer count, hidden size, attention-head count, feed-forward size, activation, dropout policy, causal mode, precision, and embedding tying.
+- [x] Validate divisibility requirements such as hidden size by head count.
+- [x] Calculate parameter count automatically.
+- [x] Calculate estimated activation memory automatically.
+- [x] Calculate parameter/checkpoint bytes automatically.
+- [ ] Calculate full inference-memory estimates once the tensor runtime exists.
+- [x] Version the configuration through the source/API contract and tests.
 - [ ] Serialize and deserialize configurations deterministically.
 
 ### 2.2 Implement tensor and parameter foundations
@@ -266,6 +266,10 @@ Attention is complete only when all of the following are true:
 **Deliverables:** Configurable transformer implementation, parameter and tensor foundation, forward pass, loss, backward pass, architecture report, unit tests.
 
 **Completion gate:** A small transformer passes tensor, mask, forward, loss, gradient, determinism, and checkpoint round-trip tests.
+
+## Current Implementation Position
+
+The current implementation position is the **validated architecture-configuration foundation**. `attention::TransformerConfig` now validates model dimensions and causal/F32 constraints, computes head size, estimates parameter count and parameter bytes, estimates activation memory, and has 6 dedicated tests. The next implementation step is the tensor and parameter foundation: layouts, ownership, deterministic initialization, and shape validation.
 
 ## Stage 3 — Tokenizer and Text Representation
 
