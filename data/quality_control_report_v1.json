@@ -1,0 +1,22 @@
+{
+  "accepted_documents": 4,
+  "checks": {
+    "exact_duplicates_removed_before_training": true,
+    "near_duplicates_removed_before_training": true,
+    "repeated_boilerplate_reviewed": true,
+    "split_leakage_absent": true
+  },
+  "documents_seen": 4,
+  "exact_duplicate_document_count": 0,
+  "exact_duplicate_groups": [],
+  "format": "attention.quality_control_report.v1",
+  "near_duplicate_pairs": [],
+  "near_duplicate_threshold": 0.8,
+  "repeated_boilerplate_groups": [],
+  "split_counts": {
+    "measurement_only": 4
+  },
+  "split_leakage": [],
+  "status": "measurement-only-not-training-approved",
+  "training_approval": false
+}

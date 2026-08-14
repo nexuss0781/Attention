@@ -297,7 +297,7 @@ The current implementation position is **Stage 2.4 complete for the correctness-
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, and the first Stage 4.2 deterministic ingestion/normalization slice are now verified. These tokenizer statistics make no production token-efficiency or quality claim, and the current ingestion output remains measurement-only with no approved training sources. Exact/selective 100M–1B-token recall remains unclaimed, and an analytical backward kernel remains a future performance milestone. Next, implement duplicate/leakage controls and safe-content filtering before populating approved training sources.
+The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, Stage 4.2 deterministic ingestion/normalization, and the first Stage 4.3 duplicate/leakage-control slice are now verified. These tokenizer statistics make no production token-efficiency or quality claim, and the current ingestion output remains measurement-only with no approved training sources. Exact/selective 100M–1B-token recall remains unclaimed, and an analytical backward kernel remains a future performance milestone. Next, implement safe/disallowed-content filtering and document-quality controls before populating approved training sources.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
@@ -384,11 +384,11 @@ Every next step must update the corresponding checklist item only after its impl
 
 ### 4.3 Implement quality and leakage controls
 
-- [ ] Remove exact duplicates.
-- [ ] Remove near-duplicates.
-- [ ] Detect repeated boilerplate.
-- [ ] Split training, validation, and test sets without leakage.
-- [ ] Verify that evaluation examples are not present in training data.
+- [x] Detect and report exact duplicates by normalized SHA-256 before any training approval.
+- [x] Detect and report conservative near duplicates using deterministic five-token shingles and a declared Jaccard threshold.
+- [x] Detect and report repeated long boilerplate lines across documents.
+- [x] Enforce split-leakage checks by normalized hash; the current measurement-only split cannot become training data.
+- [x] Provide regression coverage that rejects cross-split duplicate leakage; evaluation-example isolation remains pending real split population.
 - [ ] Record filtering counts and reasons.
 - [ ] Record language distribution.
 - [ ] Record domain distribution.
