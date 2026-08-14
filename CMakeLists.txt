@@ -99,6 +99,7 @@ set(ATTENTION_SOURCES
     src/causal_mask.cpp
     src/linear_attention.cpp
     src/linear_attention_stream.cpp
+    src/hierarchical_summary.cpp
     src/smao_linear_boundary.cpp
     src/core/types.cpp
     src/core/exact_decomposition.cpp
@@ -125,6 +126,7 @@ set(ATTENTION_HEADERS
     include/attention/qkv_projection.h
     include/attention/causal_mask.h
     include/attention/linear_attention.h
+    include/attention/hierarchical_summary.h
     include/attention/smao_linear_boundary.h
     include/smao_phase1/smao_phase1.h
     include/smao_phase1/core/types.h
@@ -187,6 +189,7 @@ if(ATTENTION_BUILD_TESTS)
         tests/test_qkv_causal.cpp
         tests/test_linear_attention.cpp
         tests/test_linear_attention_stream.cpp
+        tests/test_hierarchical_summary.cpp
         tests/test_smao_linear_boundary.cpp
     )
     target_link_libraries(attention_tests PRIVATE attention_static GTest::gtest_main)

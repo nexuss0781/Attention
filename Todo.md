@@ -261,7 +261,7 @@ Attention is complete only when all of the following are true:
 - [x] Verify a logical one-billion-token context configuration without context-sized allocation.
 - [x] Benchmark an exact one-million-token logical stream using fixed-size chunks.
 - [x] Document personal-computer memory, bandwidth, compute, and information-capacity limits in `docs/LONG_CONTEXT_FEASIBILITY-2026-08-14.md`.
-- [ ] Implement hierarchical summaries, external retrieval memory, or sparse long-range links for exact or selective recall at 100M–1B tokens.
+- [x] Implement bounded hierarchical summaries through `attention::HierarchicalSummaryState`; exact/selective 100M–1B-token recall remains unclaimed pending the quality protocol.
 
 ### 2.4 Implement forward and backward execution
 
@@ -280,7 +280,7 @@ Attention is complete only when all of the following are true:
 
 ## Current Implementation Position
 
-The current implementation position is **Stage 2.3, with linear aggregation, the conservative Attention/SMAO boundary, and the efficient long-context streaming foundation complete**. The verified implementation includes chunk-reusable `LinearAttentionState`, sequence-independent recurrent state, absolute-position chunk encoding, and a one-billion-token logical-context configuration that does not allocate a context-sized tensor. The full transformer graph, training execution, hierarchical long-term memory, exact selective retrieval, and checkpoint serialization are not yet complete.
+The current implementation position is **Stage 2.3, with linear aggregation, the conservative Attention/SMAO boundary, efficient long-context streaming, bounded hierarchical summaries, and Stage 2.1 configuration completion verified**. The implementation includes chunk-reusable `LinearAttentionState`, absolute-position chunk encoding, one-billion-token logical-context configurations without context-sized tensors, and `HierarchicalSummaryState` with bounded multi-scale means. The full transformer forward/loss/training graph, exact selective retrieval, and checkpoint serialization remain incomplete.
 
 ### Verified State Snapshot
 
@@ -290,14 +290,14 @@ The current implementation position is **Stage 2.3, with linear aggregation, the
 | Stage 1 | Complete | `docs/STAGE1_NUMERICAL_GATE_REPORT.md`; release and sanitizer validation |
 | Stage 2.1 | Complete | Configuration schema, validation, parameter counts, activation estimates, full inference-memory estimation, and deterministic serialization are verified |
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
-| Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, efficient long-context stream, and composable transformer blocks are complete; hierarchical memory remains pending |
+| Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, efficient long-context stream, composable transformer blocks, and bounded hierarchical summaries are complete; exact retrieval remains unclaimed |
 | Stage 2.4 | Not started | Forward loss, backward propagation, gradient flow, deterministic forward, and checkpoint reload remain pending |
-| Current test state | Verified | `89/89` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
+| Current test state | Verified | `93/93` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. The Stage 2.1 configuration schema, full inference-memory estimate, and deterministic serialization, together with the linear attention aggregation, conservative Attention/SMAO boundary, efficient chunk-streaming foundation, standalone feed-forward expansion/projection layer, per-token LayerNorm, shape-safe residual connections, distinct final output normalization, tied/untied vocabulary projection, direct autoregressive logits path, and composable transformer block are now complete and verified. First, add hierarchical summaries, external retrieval memory, or sparse long-range links before claiming exact or selective 100M–1B-token recall. Second, implement the Stage 2.4 forward pass, language-model loss, backward propagation, gradient checks, determinism tests, malformed-configuration tests, and checkpoint reload equivalence.
+The next work must follow the checklist in order. The Stage 2.1 configuration and serialization, linear attention aggregation, conservative Attention/SMAO boundary, efficient chunk-streaming foundation, bounded hierarchical summaries, standalone feed-forward expansion/projection layer, per-token LayerNorm, shape-safe residual connections, distinct final output normalization, tied/untied vocabulary projection, direct autoregressive logits path, and composable transformer block are now complete and verified. Exact/selective 100M–1B-token recall remains unclaimed. Next, implement the Stage 2.4 forward pass and causal language-model loss, followed by backward propagation, gradient checks, determinism tests, malformed-configuration tests, and checkpoint reload equivalence.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
