@@ -226,15 +226,15 @@ Attention is complete only when all of the following are true:
 
 ### 2.2 Implement tensor and parameter foundations
 
-- [ ] Define tensor layout conventions.
-- [ ] Define supported data types.
-- [ ] Define device and memory ownership rules.
-- [ ] Implement parameter initialization.
-- [ ] Implement deterministic random initialization from a seed.
-- [ ] Implement gradient storage and gradient clearing.
-- [ ] Implement shape and stride validation.
-- [ ] Implement checkpoint-compatible parameter naming.
-- [ ] Add tests for tensor shapes, layouts, initialization, and determinism.
+- [x] Define tensor layout conventions in `docs/TENSOR_PARAMETER_FOUNDATION.md`.
+- [x] Define supported data types: F32 only in the first CPU foundation.
+- [x] Define CPU device and RAII memory ownership rules.
+- [x] Implement parameter initialization.
+- [x] Implement deterministic random initialization from a seed.
+- [x] Implement gradient storage and gradient clearing.
+- [x] Implement checked shape and row-major stride validation.
+- [x] Implement checkpoint-compatible stable parameter naming and deterministic lexicographic traversal.
+- [x] Add tests for tensor shapes, layouts, initialization, ownership, gradients, and determinism.
 
 ### 2.3 Implement the transformer blocks
 
@@ -269,7 +269,7 @@ Attention is complete only when all of the following are true:
 
 ## Current Implementation Position
 
-The current implementation position is the **validated architecture-configuration foundation**. `attention::TransformerConfig` now validates model dimensions and causal/F32 constraints, computes head size, estimates parameter count and parameter bytes, estimates activation memory, and has 6 dedicated tests. The next implementation step is the tensor and parameter foundation: layouts, ownership, deterministic initialization, and shape validation.
+The current implementation position is the **validated architecture-configuration and tensor/parameter foundation**. `attention::TransformerConfig` validates model dimensions and causal/F32 constraints, computes head size, estimates parameter count and parameter bytes, estimates activation memory, and has dedicated tests. `attention::Tensor` now provides checked contiguous F32 CPU storage with row-major strides, and `attention::ParameterStore` provides deterministic initialization, paired gradients, stable names, and deterministic traversal. The next implementation step is token embeddings, positional representation, and a composable transformer block contract.
 
 ## Stage 3 — Tokenizer and Text Representation
 

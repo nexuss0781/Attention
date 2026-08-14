@@ -2,7 +2,7 @@
 
 Attention Phase 1 is a C++20 numerical kernel for metric-aware attention geometry. It assembles a positive-definite learned metric, computes a symmetric whitening operator, transforms query and key coordinates, and evaluates the scalar Gaussian decomposition factors required by later attention stages.
 
-The current release is intentionally a **numerical foundation plus the first transformer-architecture configuration layer**, not a complete transformer or language model. It does not yet execute transformer blocks, train parameters, tokenize text, consume values into normalized attention outputs, or provide a language-generation runtime. The new `attention::TransformerConfig` component validates the planned architecture shape and computes deterministic parameter and activation-memory estimates.
+The current release is intentionally a **numerical foundation plus the first transformer-architecture foundation**, not a complete transformer or language model. It does not yet execute transformer blocks, tokenize text, consume values into normalized attention outputs, or provide a language-generation runtime. The `attention::TransformerConfig` component validates planned architecture shape and computes deterministic parameter and activation-memory estimates. The F32 CPU tensor and parameter foundation now provides checked row-major storage, deterministic initialization, gradient buffers, and stable parameter names for later graph modules.
 
 ## Pipeline
 
@@ -25,7 +25,9 @@ The metric exposed to callers and the whitening operator are kept consistent aft
 .
 ├── CMakeLists.txt
 ├── include/attention/
-│   └── transformer_config.h
+│   ├── transformer_config.h
+│   ├── tensor.h
+│   └── parameter_store.h
 ├── include/smao_phase1/
 │   ├── smao_phase1.h
 │   └── core/
@@ -38,6 +40,8 @@ The metric exposed to callers and the whitening operator are kept consistent aft
 │       └── phase1_forward.h
 ├── src/
 │   ├── core/
+│   ├── tensor.cpp
+│   ├── parameter_store.cpp
 │   └── c_api.cpp
 ├── tests/
 └── benchmarks/

@@ -85,6 +85,8 @@ endif()
 
 set(ATTENTION_SOURCES
     src/transformer_config.cpp
+    src/tensor.cpp
+    src/parameter_store.cpp
     src/core/types.cpp
     src/core/exact_decomposition.cpp
     src/core/metric_assembly.cpp
@@ -97,6 +99,8 @@ set(ATTENTION_SOURCES
 
 set(ATTENTION_HEADERS
     include/attention/transformer_config.h
+    include/attention/tensor.h
+    include/attention/parameter_store.h
     include/smao_phase1/smao_phase1.h
     include/smao_phase1/core/types.h
     include/smao_phase1/core/exact_decomposition.h
@@ -147,6 +151,7 @@ if(ATTENTION_BUILD_TESTS)
         tests/test_gradient_accuracy.cpp
         tests/test_c_api.cpp
         tests/test_transformer_config.cpp
+        tests/test_tensor_parameter.cpp
     )
     target_link_libraries(attention_tests PRIVATE attention_static GTest::gtest_main)
     target_compile_features(attention_tests PRIVATE cxx_std_20)
