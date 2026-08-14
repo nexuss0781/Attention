@@ -5,12 +5,13 @@
 #include <cstdint>
 #include <limits>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 namespace attention {
 namespace {
 
-constexpr std::string_view kMagic = "attention.checkpoint.v1";
+constexpr std::string_view kMagic = "attention.checkpoint.v2";
 
 void set_error(std::string* error, const char* message) {
     if (error != nullptr) *error = message;
@@ -57,10 +58,44 @@ bool read_line(std::string_view input, std::size_t& cursor, std::string_view& li
 
 bool read_bytes(std::string_view input, std::size_t& cursor, std::size_t length,
                 std::string_view& bytes) {
-    if (length > input.size() - cursor) return false;
+    if (cursor > input.size() || length > input.size() - cursor) return false;
     bytes = input.substr(cursor, length);
     cursor += length;
     return cursor < input.size() && input[cursor++] == '\n';
+}
+
+bool read_size_field(std::string_view input, std::size_t& cursor,
+                     std::string_view header, std::size_t& value, std::string* error) {
+    std::string_view line;
+    if (!read_line(input, cursor, line) || line != header || !read_line(input, cursor, line) ||
+        !parse_size(line, value)) {
+        set_error(error, "checkpoint tokenizer metadata size field is invalid");
+        return false;
+    }
+    return true;
+}
+
+bool parse_tokenizer_metadata(std::string_view input, std::size_t& cursor,
+                              TokenizerMetadata& metadata, std::string* error) {
+    std::string_view line;
+    if (!read_line(input, cursor, line) || line != "tokenizer_metadata") {
+        set_error(error, "checkpoint tokenizer metadata header is invalid");
+        return false;
+    }
+    std::size_t version_length = 0;
+    if (!read_size_field(input, cursor, "tokenizer_version_bytes", version_length, error)) return false;
+    std::string_view version;
+    if (!read_bytes(input, cursor, version_length, version)) {
+        set_error(error, "checkpoint tokenizer version payload is invalid");
+        return false;
+    }
+    metadata.version = std::string(version);
+    if (!read_size_field(input, cursor, "tokenizer_vocabulary_size", metadata.vocabulary_size, error) ||
+        !read_size_field(input, cursor, "tokenizer_bos", metadata.beginning_of_sequence, error) ||
+        !read_size_field(input, cursor, "tokenizer_eos", metadata.end_of_sequence, error) ||
+        !read_size_field(input, cursor, "tokenizer_pad", metadata.padding, error) ||
+        !read_size_field(input, cursor, "tokenizer_unk", metadata.unknown, error)) return false;
+    return metadata.validate(error);
 }
 
 struct LoadedParameter {
@@ -70,6 +105,7 @@ struct LoadedParameter {
 };
 
 bool parse_checkpoint(std::string_view input, TransformerConfig& config,
+                      TokenizerMetadata& tokenizer,
                       std::vector<LoadedParameter>& loaded, std::string* error) {
     std::size_t cursor = 0;
     std::string_view line;
@@ -100,6 +136,7 @@ bool parse_checkpoint(std::string_view input, TransformerConfig& config,
         if (error != nullptr) *error = "checkpoint configuration is invalid: " + config_error;
         return false;
     }
+    if (!parse_tokenizer_metadata(input, cursor, tokenizer, error)) return false;
     if (!read_line(input, cursor, line) || line != "parameter_count") {
         set_error(error, "checkpoint parameter header is invalid");
         return false;
@@ -229,11 +266,41 @@ bool parse_checkpoint(std::string_view input, TransformerConfig& config,
 
 } // namespace
 
+TokenizerMetadata TokenizerMetadata::byte_level_v1() {
+    return {std::string(ByteLevelTokenizer::version()), ByteLevelTokenizer::vocabulary_size(),
+            ByteLevelTokenizer::kBeginningOfSequence, ByteLevelTokenizer::kEndOfSequence,
+            ByteLevelTokenizer::kPadding, ByteLevelTokenizer::kUnknown};
+}
+
+bool TokenizerMetadata::validate(std::string* error) const {
+    if (version.empty() || version.find('\n') != std::string::npos || version.find('\r') != std::string::npos) {
+        set_error(error, "tokenizer metadata version is invalid");
+        return false;
+    }
+    if (vocabulary_size == 0 || beginning_of_sequence >= vocabulary_size ||
+        end_of_sequence >= vocabulary_size || padding >= vocabulary_size || unknown >= vocabulary_size ||
+        beginning_of_sequence == end_of_sequence || beginning_of_sequence == padding ||
+        beginning_of_sequence == unknown || end_of_sequence == padding || end_of_sequence == unknown ||
+        padding == unknown) {
+        set_error(error, "tokenizer metadata vocabulary or special IDs are invalid");
+        return false;
+    }
+    if (error != nullptr) error->clear();
+    return true;
+}
+
+bool TokenizerMetadata::operator==(const TokenizerMetadata& other) const noexcept {
+    return version == other.version && vocabulary_size == other.vocabulary_size &&
+           beginning_of_sequence == other.beginning_of_sequence &&
+           end_of_sequence == other.end_of_sequence && padding == other.padding && unknown == other.unknown;
+}
+
 bool TransformerCheckpoint::serialize(const TransformerConfig& config,
                                       const ParameterStore& parameters,
                                       std::string& output,
-                                      std::string* error) {
-    if (!config.validate(error) || !parameters.all_finite()) {
+                                      std::string* error,
+                                      const TokenizerMetadata& tokenizer) {
+    if (!config.validate(error) || !tokenizer.validate(error) || !parameters.all_finite()) {
         if (error != nullptr && error->empty()) *error = "checkpoint parameters are not finite";
         return false;
     }
@@ -246,6 +313,27 @@ bool TransformerCheckpoint::serialize(const TransformerConfig& config,
     append_size(output, config_text.size());
     output.push_back('\n');
     output.append(config_text);
+    output.push_back('\n');
+    output.append("tokenizer_metadata\n");
+    output.append("tokenizer_version_bytes\n");
+    append_size(output, tokenizer.version.size());
+    output.push_back('\n');
+    output.append(tokenizer.version);
+    output.push_back('\n');
+    output.append("tokenizer_vocabulary_size\n");
+    append_size(output, tokenizer.vocabulary_size);
+    output.push_back('\n');
+    output.append("tokenizer_bos\n");
+    append_size(output, tokenizer.beginning_of_sequence);
+    output.push_back('\n');
+    output.append("tokenizer_eos\n");
+    append_size(output, tokenizer.end_of_sequence);
+    output.push_back('\n');
+    output.append("tokenizer_pad\n");
+    append_size(output, tokenizer.padding);
+    output.push_back('\n');
+    output.append("tokenizer_unk\n");
+    append_size(output, tokenizer.unknown);
     output.push_back('\n');
     const std::vector<std::string> names = parameters.names();
     output.append("parameter_count\n");
@@ -288,14 +376,21 @@ bool TransformerCheckpoint::serialize(const TransformerConfig& config,
 bool TransformerCheckpoint::load(std::string_view input,
                                  TransformerModel& model,
                                  ParameterStore& parameters,
-                                 std::string* error) {
+                                 std::string* error,
+                                 const TokenizerMetadata& expected_tokenizer) {
     if (model.initialized() || parameters.size() != 0) {
         set_error(error, "checkpoint load requires a fresh model and parameter store");
         return false;
     }
+    if (!expected_tokenizer.validate(error)) return false;
     TransformerConfig config;
+    TokenizerMetadata tokenizer;
     std::vector<LoadedParameter> loaded;
-    if (!parse_checkpoint(input, config, loaded, error)) return false;
+    if (!parse_checkpoint(input, config, tokenizer, loaded, error)) return false;
+    if (!(tokenizer == expected_tokenizer)) {
+        set_error(error, "checkpoint tokenizer metadata does not match expected artifact");
+        return false;
+    }
     if (!model.register_parameters(config, parameters, error)) return false;
     const std::vector<std::string> names = parameters.names();
     if (loaded.size() != names.size()) {

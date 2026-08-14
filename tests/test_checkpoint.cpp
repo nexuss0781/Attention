@@ -32,7 +32,9 @@ TEST(CheckpointTest, DeterministicSerializationAndReloadPreserveLogits) {
     ASSERT_TRUE(TransformerCheckpoint::serialize(config, original_parameters, first, &error)) << error;
     ASSERT_TRUE(TransformerCheckpoint::serialize(config, original_parameters, second, &error)) << error;
     EXPECT_EQ(first, second);
-    EXPECT_NE(first.find("attention.checkpoint.v1"), std::string::npos);
+    EXPECT_NE(first.find("attention.checkpoint.v2"), std::string::npos);
+    EXPECT_NE(first.find("tokenizer_metadata"), std::string::npos);
+    EXPECT_NE(first.find("attention.byte_utf8.v1"), std::string::npos);
     EXPECT_NE(first.find("parameter_count"), std::string::npos);
 
     const std::vector<std::size_t> tokens{0, 1, 2};
@@ -63,7 +65,7 @@ TEST(CheckpointTest, RejectsMalformedConfigurationAndParameterPayloads) {
     TransformerModel bad_magic_model;
     ParameterStore bad_magic_parameters;
     std::string bad_magic = checkpoint;
-    bad_magic.replace(0, std::string("attention.checkpoint.v1").size(), "wrong.checkpoint.v1");
+    bad_magic.replace(0, std::string("attention.checkpoint.v2").size(), "wrong.checkpoint.v2");
     EXPECT_FALSE(TransformerCheckpoint::load(bad_magic, bad_magic_model, bad_magic_parameters, &error));
 
     TransformerModel bad_config_model;
@@ -97,6 +99,45 @@ TEST(CheckpointTest, RejectsMalformedConfigurationAndParameterPayloads) {
     duplicate.replace(second_name_payload, second_name_end - second_name_payload,
                       first_name_text);
     EXPECT_FALSE(TransformerCheckpoint::load(duplicate, duplicate_model, duplicate_parameters, &error));
+}
+
+TEST(CheckpointTest, RejectsTokenizerMetadataMismatch) {
+    const TransformerConfig config = make_checkpoint_config();
+    TransformerModel source;
+    ParameterStore source_parameters;
+    ASSERT_TRUE(source.register_parameters(config, source_parameters));
+    ASSERT_TRUE(source_parameters.initialize(77));
+    TokenizerMetadata custom = TokenizerMetadata::byte_level_v1();
+    custom.version = "attention.other_tokenizer.v9";
+    std::string checkpoint;
+    std::string error;
+    ASSERT_TRUE(TransformerCheckpoint::serialize(config, source_parameters, checkpoint, &error, custom)) << error;
+    TransformerModel fresh;
+    ParameterStore fresh_parameters;
+    EXPECT_FALSE(TransformerCheckpoint::load(checkpoint, fresh, fresh_parameters, &error));
+    EXPECT_NE(error.find("tokenizer metadata"), std::string::npos);
+    TransformerModel matching;
+    ParameterStore matching_parameters;
+    ASSERT_TRUE(TransformerCheckpoint::load(checkpoint, matching, matching_parameters, &error, custom)) << error;
+}
+
+TEST(CheckpointTest, RejectsMalformedTokenizerMetadata) {
+    const TransformerConfig config = make_checkpoint_config();
+    TransformerModel source;
+    ParameterStore source_parameters;
+    ASSERT_TRUE(source.register_parameters(config, source_parameters));
+    std::string checkpoint;
+    ASSERT_TRUE(TransformerCheckpoint::serialize(config, source_parameters, checkpoint));
+    std::string malformed = checkpoint;
+    const std::string field = "tokenizer_vocabulary_size\n260\n";
+    const std::size_t position = malformed.find(field);
+    ASSERT_NE(position, std::string::npos);
+    malformed.replace(position, field.size(), "tokenizer_vocabulary_size\n2\n");
+    TransformerModel fresh;
+    ParameterStore fresh_parameters;
+    std::string error;
+    EXPECT_FALSE(TransformerCheckpoint::load(malformed, fresh, fresh_parameters, &error));
+    EXPECT_NE(error.find("tokenizer metadata"), std::string::npos);
 }
 
 TEST(CheckpointTest, RejectsLoadingIntoNonfreshModelOrParameterStore) {

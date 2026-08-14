@@ -1,0 +1,14 @@
+{
+  "format": "attention.training_run_manifest.v1",
+  "run_id": "attention-training-v1",
+  "tokenizer": {
+    "version": "attention.byte_utf8.v1",
+    "vocabulary_size": 260,
+    "beginning_of_sequence": 256,
+    "end_of_sequence": 257,
+    "padding": 258,
+    "unknown": 259
+  },
+  "checkpoint_format": "attention.checkpoint.v2",
+  "tokenizer_metadata_required_on_reload": true
+}
