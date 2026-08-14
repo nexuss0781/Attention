@@ -118,6 +118,10 @@ bool ParameterStore::all_finite() const noexcept {
     return true;
 }
 
+std::vector<Parameter>& ParameterStore::parameters() noexcept {
+    return parameters_;
+}
+
 const std::vector<Parameter>& ParameterStore::parameters() const noexcept {
     return parameters_;
 }

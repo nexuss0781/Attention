@@ -280,7 +280,7 @@ Attention is complete only when all of the following are true:
 
 ## Current Implementation Position
 
-The current implementation position is **Stage 2.4 complete for the correctness-first execution gate**. The implementation includes linear aggregation, the conservative Attention/SMAO boundary, efficient long-context streaming, bounded hierarchical summaries, complete transformer forward execution, causal loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward coverage, checkpoint reload equivalence, and malformed-input rejection. Exact selective retrieval and an analytical backward kernel remain outside this completed gate.
+The current implementation position is **Stage 5.1 training execution in progress**. The implementation includes linear aggregation, the conservative Attention/SMAO boundary, efficient long-context streaming, bounded hierarchical summaries, complete transformer forward execution, causal loss, correctness-first finite-difference backward propagation, deterministic forward coverage, checkpoint reload equivalence, malformed-input rejection, a finite-safe SGD optimizer, a minimal Trainer step, a deterministic multi-step Stage 0 run, and checkpoint reload verification. Batch loading, sequence packing, learning-rate scheduling, gradient accumulation, validation evaluation, configurable run management, and an analytical backward kernel remain future work.
 
 ### Verified State Snapshot
 
@@ -292,12 +292,13 @@ The current implementation position is **Stage 2.4 complete for the correctness-
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
 | Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, efficient long-context stream, composable transformer blocks, and bounded hierarchical summaries are complete; exact retrieval remains unclaimed |
 | Stage 2.4 | Complete | Forward, causal loss, correctness-first backward propagation, gradient-flow checks, numerical gradient checks, deterministic forward, checkpoint reload, and malformed-input coverage are verified |
-| Current test state | Verified | `108/108` tests pass in Release and portable sanitizer configurations; tokenizer measurement and sequence-length CSVs are deterministic and the million-token chunk benchmark also passes |
+| Stage 5.1 | In progress | Minimal finite-safe SGD training step and deterministic Stage 0 loss-decrease run are verified; batch loading, packing, scheduling, accumulation, validation, and run management remain |
+| Current test state | Verified | `112/112` tests pass in Release and portable sanitizer configurations; tokenizer measurement and sequence-length CSVs are deterministic and the million-token chunk benchmark also passes |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, Stage 4.2 deterministic ingestion/normalization, and the first Stage 4.3 duplicate/leakage-control slice are now verified. These tokenizer statistics make no production token-efficiency or quality claim, and the current ingestion output remains measurement-only with no approved training sources. Exact/selective 100M–1B-token recall remains unclaimed, and an analytical backward kernel remains a future performance milestone. Next, implement safe/disallowed-content filtering and document-quality controls before populating approved training sources.
+The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, Stage 4.2 deterministic ingestion/normalization, and the first Stage 4.3 duplicate/leakage-control slice are verified. The first Stage 5.1 training slice now runs a real deterministic four-step causal SGD experiment and demonstrates loss reduction from `1.18923914` to `1.11430740` with exact checkpoint-reload loss continuity; see `docs/STAGE0_TRAINING_RESULT.md`. This is a training-signal result on the tiny fixed subset, not a language-quality claim. Next, keep training as the priority by adding batch/shard loading, sequence packing, run logging, validation, and resumable checkpoint state before scaling to the selected curriculum.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
@@ -424,10 +425,10 @@ Every next step must update the corresponding checklist item only after its impl
 
 - [ ] Implement batch loading.
 - [ ] Implement sequence packing.
-- [ ] Implement causal language-model loss.
-- [ ] Implement forward execution in training mode.
-- [ ] Implement backward propagation.
-- [ ] Implement optimizer integration.
+- [x] Implement causal language-model loss.
+- [x] Implement forward execution in training mode.
+- [x] Implement backward propagation.
+- [x] Implement optimizer integration.
 - [ ] Implement learning-rate scheduling.
 - [ ] Implement gradient accumulation.
 - [ ] Implement gradient clipping where required.

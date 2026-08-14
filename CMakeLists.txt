@@ -95,6 +95,8 @@ set(ATTENTION_SOURCES
     src/vocabulary_projection.cpp
     src/transformer_block.cpp
     src/transformer_model.cpp
+    src/optimizer.cpp
+    src/trainer.cpp
     src/residual_connection.cpp
     src/token_embedding.cpp
     src/positional_encoding.cpp
@@ -126,6 +128,8 @@ set(ATTENTION_HEADERS
     include/attention/vocabulary_projection.h
     include/attention/transformer_block.h
     include/attention/transformer_model.h
+    include/attention/optimizer.h
+    include/attention/trainer.h
     include/attention/residual_connection.h
     include/attention/token_embedding.h
     include/attention/positional_encoding.h
@@ -193,6 +197,7 @@ if(ATTENTION_BUILD_TESTS)
         tests/test_vocabulary_projection.cpp
         tests/test_transformer_block.cpp
         tests/test_transformer_model.cpp
+        tests/test_trainer.cpp
         tests/test_residual_connection.cpp
         tests/test_embedding_positional.cpp
         tests/test_qkv_causal.cpp
@@ -223,6 +228,10 @@ if(ATTENTION_BUILD_BENCHMARKS)
     add_executable(attention_tokenizer_measurements benchmarks/benchmark_tokenizer.cpp)
     target_link_libraries(attention_tokenizer_measurements PRIVATE attention_static)
     target_compile_features(attention_tokenizer_measurements PRIVATE cxx_std_20)
+
+    add_executable(attention_stage0_training benchmarks/benchmark_stage0_training.cpp)
+    target_link_libraries(attention_stage0_training PRIVATE attention_static)
+    target_compile_features(attention_stage0_training PRIVATE cxx_std_20)
     if(ATTENTION_ENABLE_PERFORMANCE_TESTS)
         add_test(NAME AttentionPerformanceRegression
                  COMMAND attention_benchmarks --full --strict --repeats 5)
