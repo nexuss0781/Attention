@@ -271,8 +271,8 @@ Attention is complete only when all of the following are true:
 - [x] Verify finite gradient flow across every registered trainable component and parameter restoration after perturbation.
 - [x] Add numerical gradient checks for the complete composed model on a selected small configuration.
 - [ ] Add deterministic forward tests.
-- [ ] Add checkpoint reload equivalence tests.
-- [ ] Add malformed-configuration tests.
+- [x] Add deterministic checkpoint reload equivalence tests for configuration, parameter values, and forward logits.
+- [x] Add malformed-configuration and malformed-checkpoint tests with strict rejection behavior.
 
 **Deliverables:** Configurable transformer implementation, parameter and tensor foundation, forward pass, loss, backward pass, architecture report, unit tests.
 
@@ -291,13 +291,13 @@ The current implementation position is **Stage 2.3, with linear aggregation, the
 | Stage 2.1 | Complete | Configuration schema, validation, parameter counts, activation estimates, full inference-memory estimation, and deterministic serialization are verified |
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
 | Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, efficient long-context stream, composable transformer blocks, and bounded hierarchical summaries are complete; exact retrieval remains unclaimed |
-| Stage 2.4 | In progress | Complete forward, causal loss, correctness-first backward propagation, gradient-flow checks, and numerical gradient checks are verified; checkpoint reload remains pending |
-| Current test state | Verified | `98/98` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
+| Stage 2.4 | In progress | Forward, causal loss, correctness-first backward propagation, gradient-flow checks, numerical gradient checks, checkpoint reload, and malformed-input coverage are verified; dedicated deterministic-forward checklist wording remains |
+| Current test state | Verified | `101/101` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. The Stage 2.1 configuration and serialization, linear attention aggregation, conservative Attention/SMAO boundary, efficient chunk-streaming foundation, bounded hierarchical summaries, standalone feed-forward expansion/projection layer, per-token LayerNorm, shape-safe residual connections, distinct final output normalization, tied/untied vocabulary projection, direct autoregressive logits path, composable transformer block, complete forward execution, causal language-model loss, correctness-first backward propagation, gradient flow, and numerical gradient checks are now complete and verified. Exact/selective 100M–1B-token recall remains unclaimed. Next, add checkpoint reload equivalence and malformed-configuration coverage; an analytical backward kernel remains a future performance milestone.
+The next work must follow the checklist in order. The Stage 2.1 configuration and serialization, linear attention aggregation, conservative Attention/SMAO boundary, efficient chunk-streaming foundation, bounded hierarchical summaries, standalone feed-forward expansion/projection layer, per-token LayerNorm, shape-safe residual connections, distinct final output normalization, tied/untied vocabulary projection, direct autoregressive logits path, composable transformer block, complete forward execution, causal language-model loss, correctness-first backward propagation, gradient flow, numerical gradient checks, checkpoint reload equivalence, and malformed-input coverage are now complete and verified. Exact/selective 100M–1B-token recall remains unclaimed. Next, add the dedicated deterministic-forward checklist test; an analytical backward kernel remains a future performance milestone.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 

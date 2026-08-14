@@ -85,6 +85,7 @@ endif()
 
 set(ATTENTION_SOURCES
     src/transformer_config.cpp
+    src/checkpoint.cpp
     src/tensor.cpp
     src/parameter_store.cpp
     src/feed_forward.cpp
@@ -114,6 +115,7 @@ set(ATTENTION_SOURCES
 
 set(ATTENTION_HEADERS
     include/attention/transformer_config.h
+    include/attention/checkpoint.h
     include/attention/tensor.h
     include/attention/parameter_store.h
     include/attention/feed_forward.h
@@ -180,6 +182,7 @@ if(ATTENTION_BUILD_TESTS)
         tests/test_gradient_accuracy.cpp
         tests/test_c_api.cpp
         tests/test_transformer_config.cpp
+        tests/test_checkpoint.cpp
         tests/test_tensor_parameter.cpp
         tests/test_feed_forward.cpp
         tests/test_normalization.cpp
