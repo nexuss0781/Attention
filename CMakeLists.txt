@@ -89,6 +89,7 @@ set(ATTENTION_SOURCES
     src/parameter_store.cpp
     src/feed_forward.cpp
     src/normalization.cpp
+    src/final_output.cpp
     src/residual_connection.cpp
     src/token_embedding.cpp
     src/positional_encoding.cpp
@@ -113,6 +114,7 @@ set(ATTENTION_HEADERS
     include/attention/parameter_store.h
     include/attention/feed_forward.h
     include/attention/normalization.h
+    include/attention/final_output.h
     include/attention/residual_connection.h
     include/attention/token_embedding.h
     include/attention/positional_encoding.h
@@ -173,6 +175,7 @@ if(ATTENTION_BUILD_TESTS)
         tests/test_tensor_parameter.cpp
         tests/test_feed_forward.cpp
         tests/test_normalization.cpp
+        tests/test_final_output.cpp
         tests/test_residual_connection.cpp
         tests/test_embedding_positional.cpp
         tests/test_qkv_causal.cpp

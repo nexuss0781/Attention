@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <new>
+#include <utility>
 
 namespace attention {
 namespace {
@@ -20,6 +21,8 @@ bool valid_parameter_tensor(const Tensor& tensor) {
 }
 
 } // namespace
+
+Normalization::Normalization(std::string prefix) : prefix_(std::move(prefix)) {}
 
 bool Normalization::register_parameters(const TransformerConfig& config,
                                        ParameterStore& parameters,

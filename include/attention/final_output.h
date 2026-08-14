@@ -1,19 +1,15 @@
-#ifndef ATTENTION_NORMALIZATION_H
-#define ATTENTION_NORMALIZATION_H
+#ifndef ATTENTION_FINAL_OUTPUT_H
+#define ATTENTION_FINAL_OUTPUT_H
 
-#include "attention/parameter_store.h"
-#include "attention/tensor.h"
-#include "attention/transformer_config.h"
+#include "attention/normalization.h"
 
 #include <cstddef>
 #include <string>
 
 namespace attention {
 
-class Normalization {
+class FinalOutput {
 public:
-    explicit Normalization(std::string prefix = "norm");
-
     bool register_parameters(const TransformerConfig& config,
                              ParameterStore& parameters,
                              std::string* error = nullptr);
@@ -28,10 +24,9 @@ public:
     [[nodiscard]] const std::string& prefix() const noexcept;
 
 private:
-    std::size_t hidden_size_ = 0;
-    std::string prefix_ = "norm";
+    Normalization normalization_{"final_norm"};
 };
 
 } // namespace attention
 
-#endif // ATTENTION_NORMALIZATION_H
+#endif // ATTENTION_FINAL_OUTPUT_H
