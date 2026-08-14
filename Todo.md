@@ -297,7 +297,7 @@ The current implementation position is **Stage 2.4 complete for the correctness-
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. The conservative `attention.byte_utf8.v1` tokenizer foundation and reproducible English, Amharic, bilingual, code, structured-sample, and unknown-rate measurements are now verified. These byte-level statistics make no production token-efficiency or quality claim. Exact/selective 100M–1B-token recall remains unclaimed, and an analytical backward kernel remains a future performance milestone. Next, complete sequence-length distribution and training-run tokenizer/checkpoint artifact freezing before implementing the real training and evaluation pipeline.
+The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. The conservative `attention.byte_utf8.v1` tokenizer foundation, reproducible efficiency/unknown-rate measurements, and descriptive sequence-length distributions are now verified. These byte-level statistics make no production token-efficiency or quality claim. Exact/selective 100M–1B-token recall remains unclaimed, and an analytical backward kernel remains a future performance milestone. Next, freeze the tokenizer version per training run and store vocabulary/configuration metadata with every checkpoint before implementing the real training and evaluation pipeline.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
@@ -342,7 +342,7 @@ Every next step must update the corresponding checklist item only after its impl
 - [x] Measure token efficiency on repository C++ source.
 - [x] Measure token efficiency on a structured checkpoint-test sample as the current structured-message proxy.
 - [x] Measure unknown-token rate; the observed zero rate is a byte-level construction property, not a semantic-quality claim.
-- [ ] Measure sequence-length distribution.
+- [x] Measure descriptive sequence-length distributions over newline-delimited non-empty records with mean, p50, p95, maximum, and empty-line counts; this is not a representative corpus claim.
 - [ ] Freeze the tokenizer version for each training run.
 - [ ] Store vocabulary and configuration with every checkpoint.
 

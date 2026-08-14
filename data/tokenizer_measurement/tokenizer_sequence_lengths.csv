@@ -1,0 +1,6 @@
+category,nonempty_lines,empty_lines,mean_tokens,p50_tokens,p95_tokens,max_tokens
+english,298,1,54.748322,17,260,557
+amharic,1519,1,39.564187,12,162,1874
+bilingual,1817,2,42.054485,12,194,1874
+code,230,17,46.317391,44,94,115
+structured,106,18,51.726415,40,104,118
