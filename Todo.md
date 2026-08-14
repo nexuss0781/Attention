@@ -72,6 +72,7 @@ Attention is complete only when all of the following are true:
 
 - [x] The technical specification is approved and versioned.
 - [x] The current numerical foundation builds cleanly from an empty build directory and passes the recorded release and sanitizer verification commands.
+- [x] The production path has no implicit O(n²) token-pair allocation or computation; the invariant is audited in `docs/COMPLEXITY_AUDIT-2026-08-14.md`.
 - [ ] The transformer architecture is implemented, tested, and configurable.
 - [ ] The tokenizer is deterministic, versioned, and integrated with all data and inference paths.
 - [ ] The dataset pipeline is reproducible, inspected, filtered, split, and traceable.
@@ -269,7 +270,26 @@ Attention is complete only when all of the following are true:
 
 ## Current Implementation Position
 
-The current implementation position is the **validated architecture configuration, tensor/parameter foundation, embedding path, positional representation, QKV projection path, and streaming causal mask**. `attention::QKVProjection` produces query, key, and value tensors with `O(batch × sequence × hidden²)` work, while `attention::CausalMask` uses zero sequence-dependent storage. The next implementation step is a linear attention aggregation strategy; dense token-pair score materialization is prohibited by the project contract.
+The current implementation position is **Stage 2.3, partially complete**. The verified implementation now includes the architecture configuration, F32 CPU tensor foundation, deterministic parameter store, token embeddings, sinusoidal positional representation, per-token QKV projections, and a zero-storage streaming causal mask. The full transformer graph, attention aggregation, training execution, and checkpoint serialization are not yet complete.
+
+### Verified State Snapshot
+
+| Area | State | Evidence |
+|---|---|---|
+| Stage 0 | Complete | `Goal.md`, engineering conventions, baseline report, and all Stage 0 checklist items |
+| Stage 1 | Complete | `docs/STAGE1_NUMERICAL_GATE_REPORT.md`; release and sanitizer validation |
+| Stage 2.1 | Partially complete | Configuration schema, validation, parameter counts, and activation estimates are complete; full inference-memory estimation and deterministic serialization remain pending |
+| Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
+| Stage 2.3 | In progress | Embedding, positional, QKV, and causal-mask items are complete; aggregation and later transformer blocks remain pending |
+| Stage 2.4 | Not started | Forward loss, backward propagation, gradient flow, deterministic forward, and checkpoint reload remain pending |
+| Current test state | Verified | `53/53` tests pass in Release and portable sanitizer configurations |
+| Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
+
+### Ordered Walkthrough from Todo.md
+
+The next work must follow the checklist in order. First, design and document a **linear attention aggregation** strategy whose state is bounded by hidden/head dimensions and per-token outputs; dense softmax score matrices are prohibited. Second, implement and test streaming score/value aggregation without allocating a query-key matrix. Third, document and test the Attention/SMAO kernel boundary so incompatible semantics are explicit rather than hidden. Fourth, implement feed-forward layers, normalization, residual connections, final output processing, vocabulary projection, and autoregressive logits as separate composable modules. Fifth, complete the Stage 2.1 inference-memory estimate and deterministic configuration serialization. Sixth, implement the Stage 2.4 forward pass, language-model loss, backward propagation, gradient checks, determinism tests, malformed-configuration tests, and checkpoint reload equivalence.
+
+Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
 ## Stage 3 — Tokenizer and Text Representation
 
