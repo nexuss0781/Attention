@@ -1,0 +1,67 @@
+{
+  "dataset_id": "attention-measurement-ingestion-v1",
+  "format": "attention.ingestion_manifest.v1",
+  "normalization": {
+    "empty_documents": "reject",
+    "encoding": "UTF-8-strict",
+    "invalid_utf8": "reject",
+    "line_endings": "LF",
+    "unicode_normalization": "NFC"
+  },
+  "sources": [
+    {
+      "approved_for_training": false,
+      "domain": "general_prose",
+      "language": "english",
+      "license_status": "source-specific-review-required",
+      "owner_provider": "United Nations",
+      "permitted_use": "measurement_only",
+      "relative_path": "data/tokenizer_measurement/corpus/english_udhr.txt",
+      "retrieved_or_built_at": "2026-08-14",
+      "sha256": "708b0323566c20bcc2f4ddd5aed6c519f60d559216ab68f7f0c100c9c3068985",
+      "source_id": "un_udhr_english",
+      "source_url": "https://www.un.org/en/about-us/universal-declaration-of-human-rights"
+    },
+    {
+      "approved_for_training": false,
+      "domain": "general_prose",
+      "language": "amharic",
+      "license_status": "CC-BY-SA-4.0-attribution-required",
+      "owner_provider": "Wikimedia contributors",
+      "permitted_use": "measurement_only",
+      "relative_path": "data/tokenizer_measurement/corpus/amharic_wikipedia_ethiopia.txt",
+      "retrieved_or_built_at": "2026-08-14",
+      "sha256": "b33581ffcafca86f2bad9ca2895d279c6eca14e75b95c7e46af0556a974e8851",
+      "source_id": "am_wikipedia_ethiopia",
+      "source_url": "https://am.wikipedia.org/wiki/%E1%8A%A2%E1%89%B5%E1%8B%AE%E1%8C%B5%E1%8B%AB"
+    },
+    {
+      "approved_for_training": false,
+      "domain": "technical_code",
+      "language": "english_code",
+      "license_status": "repository-license-review-required",
+      "owner_provider": "Attention repository contributors",
+      "permitted_use": "measurement_only",
+      "relative_path": "data/tokenizer_measurement/corpus/code_cpp.txt",
+      "retrieved_or_built_at": "2026-08-14",
+      "sha256": "94225d36dd9eda8a895722cb7451cd6a0b8131c999e8c35b9ff44d4b86fbae08",
+      "source_id": "attention_cpp_internal",
+      "source_url": "repository://Attention/src/transformer_model.cpp"
+    },
+    {
+      "approved_for_training": false,
+      "domain": "structured_tool_text",
+      "language": "english_code",
+      "license_status": "repository-license-review-required",
+      "owner_provider": "Attention repository contributors",
+      "permitted_use": "measurement_only",
+      "relative_path": "data/tokenizer_measurement/corpus/structured_checkpoint_test.txt",
+      "retrieved_or_built_at": "2026-08-14",
+      "sha256": "0b9ca6406f64f03f2cef89a3fc476a21036b0edf9a0af2ad1c6f22641ce75af7",
+      "source_id": "attention_structured_checkpoint_test",
+      "source_url": "repository://Attention/tests/test_checkpoint.cpp"
+    }
+  ],
+  "status": "measurement-only-not-training-approved",
+  "tokenizer_version": "attention.byte_utf8.v1"
+}

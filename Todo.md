@@ -297,7 +297,7 @@ The current implementation position is **Stage 2.4 complete for the correctness-
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, and the Stage 4.1 data-policy/manifest contract are now verified. These tokenizer statistics make no production token-efficiency or quality claim, and the Stage 4 manifest still contains no approved source entries. Exact/selective 100M–1B-token recall remains unclaimed, and an analytical backward kernel remains a future performance milestone. Next, implement policy-compliant source ingestion and internal document normalization.
+The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, and the first Stage 4.2 deterministic ingestion/normalization slice are now verified. These tokenizer statistics make no production token-efficiency or quality claim, and the current ingestion output remains measurement-only with no approved training sources. Exact/selective 100M–1B-token recall remains unclaimed, and an analytical backward kernel remains a future performance milestone. Next, implement duplicate/leakage controls and safe-content filtering before populating approved training sources.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
@@ -370,17 +370,17 @@ Every next step must update the corresponding checklist item only after its impl
 
 ### 4.2 Implement ingestion and normalization
 
-- [ ] Implement source ingestion.
-- [ ] Normalize documents into an internal format.
-- [ ] Normalize encoding and line endings.
-- [ ] Detect language.
-- [ ] Preserve source metadata.
-- [ ] Record source URL or identifier where permitted.
-- [ ] Remove empty and corrupted documents.
+- [x] Implement manifest-driven source ingestion for reviewed measurement inputs.
+- [x] Normalize documents into deterministic internal JSONL records with stable document IDs.
+- [x] Normalize strict UTF-8, Unicode NFC, and CRLF/CR line endings to LF.
+- [x] Detect language conservatively and preserve the declared label for audit comparison.
+- [x] Preserve source metadata, checksums, owner/provider, license status, and intended use.
+- [x] Record source URLs or repository identifiers where permitted.
+- [x] Remove empty and corrupted documents through explicit rejection reasons.
 - [ ] Filter spam-like and extremely low-quality content.
 - [ ] Filter unsafe or disallowed content according to the data policy.
-- [ ] Normalize document boundaries.
-- [ ] Generate inspectable samples.
+- [x] Normalize document boundaries as one deterministic JSONL document per manifest source.
+- [x] Generate inspectable normalized-document previews and summary statistics.
 
 ### 4.3 Implement quality and leakage controls
 

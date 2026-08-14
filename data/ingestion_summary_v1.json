@@ -1,0 +1,19 @@
+{
+  "accepted_documents": 4,
+  "dataset_id": "attention-measurement-ingestion-v1",
+  "domain_counts": {
+    "general_prose": 2,
+    "structured_tool_text": 1,
+    "technical_code": 1
+  },
+  "format": "attention.ingestion_summary.v1",
+  "language_counts": {
+    "amharic": 1,
+    "english": 1,
+    "english_code": 2
+  },
+  "rejected_documents": 0,
+  "rejection_counts": {},
+  "status": "measurement-only-not-training-approved",
+  "tokenizer_version": "attention.byte_utf8.v1"
+}
