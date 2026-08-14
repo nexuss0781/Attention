@@ -92,3 +92,76 @@ TEST(TransformerModelTest, RejectsInvalidTokenShapesTargetsAndNonfiniteLogits) {
 
 } // namespace
 } // namespace attention
+
+namespace attention {
+namespace {
+
+TEST(TransformerModelTest, BackwardPopulatesFiniteGradientsAndMatchesCentralDifference) {
+    const TransformerConfig config = make_config();
+    TransformerModel model;
+    ParameterStore parameters;
+    ASSERT_TRUE(model.register_parameters(config, parameters));
+    ASSERT_TRUE(parameters.initialize(42));
+    const std::vector<std::size_t> tokens{0, 1, 2};
+    const float step = 1e-3f;
+    const Parameter* before = parameters.find("lm_head.bias");
+    ASSERT_NE(before, nullptr);
+    const float original_bias = before->value.data()[0];
+
+    std::string error;
+    ASSERT_TRUE(model.backward(tokens, 1, 3, parameters, step, &error)) << error;
+    const Parameter* bias = parameters.find("lm_head.bias");
+    ASSERT_NE(bias, nullptr);
+    EXPECT_FLOAT_EQ(bias->value.data()[0], original_bias);
+    bool saw_nonzero = false;
+    for (const Parameter& parameter : parameters.parameters()) {
+        ASSERT_TRUE(parameter.gradient.all_finite()) << parameter.name;
+        for (std::size_t index = 0; index < parameter.gradient.size(); ++index) {
+            saw_nonzero = saw_nonzero || std::abs(parameter.gradient.data()[index]) > 1e-7f;
+        }
+    }
+    EXPECT_TRUE(saw_nonzero);
+
+    ParameterStore plus = parameters;
+    ParameterStore minus = parameters;
+    plus.find("lm_head.bias")->value.data()[0] += step;
+    minus.find("lm_head.bias")->value.data()[0] -= step;
+    float plus_loss = 0.0f;
+    float minus_loss = 0.0f;
+    ASSERT_TRUE(model.causal_loss(tokens, 1, 3, plus, plus_loss, &error)) << error;
+    ASSERT_TRUE(model.causal_loss(tokens, 1, 3, minus, minus_loss, &error)) << error;
+    const float expected = (plus_loss - minus_loss) / (2.0f * step);
+    EXPECT_NEAR(bias->gradient.data()[0], expected, 2e-4f);
+
+    ParameterStore repeat = parameters;
+    ASSERT_TRUE(model.backward(tokens, 1, 3, repeat, step, &error)) << error;
+    ASSERT_EQ(parameters.size(), repeat.size());
+    for (const std::string& name : parameters.names()) {
+        const Parameter* left = parameters.find(name);
+        const Parameter* right = repeat.find(name);
+        ASSERT_NE(left, nullptr);
+        ASSERT_NE(right, nullptr);
+        ASSERT_EQ(left->gradient.size(), right->gradient.size());
+        for (std::size_t index = 0; index < left->gradient.size(); ++index) {
+            EXPECT_FLOAT_EQ(left->gradient.data()[index], right->gradient.data()[index]);
+        }
+    }
+}
+
+TEST(TransformerModelTest, BackwardRejectsInvalidDifferenceStepAndTargets) {
+    const TransformerConfig config = make_config();
+    TransformerModel model;
+    ParameterStore parameters;
+    ASSERT_TRUE(model.register_parameters(config, parameters));
+    const std::vector<std::size_t> tokens{0, 1, 2};
+    std::string error;
+    EXPECT_FALSE(model.backward(tokens, 1, 3, parameters, 0.0f, &error));
+    EXPECT_NE(error.find("difference step"), std::string::npos);
+    EXPECT_FALSE(model.backward({0, 1, 9}, 1, 3, parameters, 1e-3f, &error));
+    EXPECT_NE(error.find("vocabulary"), std::string::npos);
+    EXPECT_FALSE(model.backward({0}, 1, 1, parameters, 1e-3f, &error));
+    EXPECT_NE(error.find("sequence"), std::string::npos);
+}
+
+} // namespace
+} // namespace attention

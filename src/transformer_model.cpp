@@ -108,6 +108,78 @@ bool TransformerModel::causal_loss(const std::vector<std::size_t>& token_ids,
     return causal_cross_entropy(logits, token_ids, loss, error);
 }
 
+bool TransformerModel::backward(const std::vector<std::size_t>& token_ids,
+                                std::size_t batch_size,
+                                std::size_t sequence_length,
+                                ParameterStore& parameters,
+                                float difference_step,
+                                std::string* error) const {
+    if (!initialized_) {
+        set_error(error, "transformer model is not initialized");
+        return false;
+    }
+    if (!std::isfinite(difference_step) || !(difference_step > 0.0f)) {
+        set_error(error, "backward difference step must be finite and positive");
+        return false;
+    }
+    if (batch_size == 0 || sequence_length < 2 || sequence_length > config_.context_length ||
+        !multiply_fits(batch_size, sequence_length) ||
+        token_ids.size() != batch_size * sequence_length) {
+        set_error(error, "backward token shape requires a valid batch and sequence");
+        return false;
+    }
+    for (const std::size_t token : token_ids) {
+        if (token >= config_.vocabulary_size) {
+            set_error(error, "backward token is outside vocabulary");
+            return false;
+        }
+    }
+
+    parameters.clear_gradients();
+    const std::vector<std::string> names = parameters.names();
+    for (const std::string& name : names) {
+        Parameter* parameter = parameters.find(name);
+        if (parameter == nullptr || !parameter->value.all_finite()) {
+            set_error(error, "backward parameter is missing or nonfinite");
+            return false;
+        }
+        for (std::size_t index = 0; index < parameter->value.size(); ++index) {
+            const float original = parameter->value.data()[index];
+            parameter->value.data()[index] = original + difference_step;
+            float plus_loss = 0.0f;
+            std::string plus_error;
+            const bool plus_ok = causal_loss(token_ids, batch_size, sequence_length,
+                                             parameters, plus_loss, &plus_error);
+            parameter->value.data()[index] = original - difference_step;
+            float minus_loss = 0.0f;
+            std::string minus_error;
+            const bool minus_ok = causal_loss(token_ids, batch_size, sequence_length,
+                                              parameters, minus_loss, &minus_error);
+            parameter->value.data()[index] = original;
+            if (!plus_ok || !minus_ok) {
+                if (error != nullptr) {
+                    *error = !plus_ok ? plus_error : minus_error;
+                }
+                return false;
+            }
+            const double gradient = (static_cast<double>(plus_loss) - static_cast<double>(minus_loss)) /
+                                    (2.0 * static_cast<double>(difference_step));
+            if (!std::isfinite(gradient) ||
+                std::abs(gradient) > static_cast<double>(std::numeric_limits<float>::max())) {
+                set_error(error, "backward gradient is not finite");
+                return false;
+            }
+            parameter->gradient.data()[index] = static_cast<float>(gradient);
+        }
+    }
+    if (!parameters.all_finite()) {
+        set_error(error, "backward produced nonfinite parameter state");
+        return false;
+    }
+    if (error != nullptr) error->clear();
+    return true;
+}
+
 bool TransformerModel::causal_cross_entropy(const Tensor& logits,
                                             const std::vector<std::size_t>& target_token_ids,
                                             float& loss,

@@ -33,6 +33,16 @@ public:
                      float& loss,
                      std::string* error = nullptr) const;
 
+    // Computes central finite-difference gradients for every registered parameter.
+    // This correctness-first fallback is intentionally explicit and is not a
+    // replacement for the later analytical backward kernel.
+    bool backward(const std::vector<std::size_t>& token_ids,
+                  std::size_t batch_size,
+                  std::size_t sequence_length,
+                  ParameterStore& parameters,
+                  float difference_step = 1e-3f,
+                  std::string* error = nullptr) const;
+
     static bool causal_cross_entropy(const Tensor& logits,
                                      const std::vector<std::size_t>& target_token_ids,
                                      float& loss,

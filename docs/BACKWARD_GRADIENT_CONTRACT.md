@@ -1,0 +1,7 @@
+# Backward and Gradient Contract
+
+`attention::TransformerModel::backward` computes a central finite-difference gradient for every registered parameter and stores the result in that parameter’s existing `gradient` tensor. The method clears old gradients first, validates the token stream and difference step, perturbs one scalar parameter value at a time, evaluates the complete causal loss at `+h` and `-h`, restores the original parameter value, and writes `(L(+h) - L(-h)) / (2h)`.
+
+This is a correctness-first backward implementation for the current CPU foundation. It verifies gradient flow through the complete composed forward graph, including embeddings, positional-independent transformer parameters, normalization, linear attention, feed-forward layers, final normalization, and the vocabulary head. It is intentionally explicit that this finite-difference path is not the final scalable analytical training kernel; an analytical backward implementation remains a later performance and training milestone.
+
+The method guarantees that parameter values are restored after each perturbation and rejects nonfinite steps, malformed token shapes, out-of-range tokens, nonfinite parameters, and nonfinite gradients. It uses only scalar perturbation state and the existing forward activations; it does not allocate token-pair matrices or any sequence-length-squared structure. Its computational cost is `O(P × F)`, where `P` is the number of parameter scalars and `F` is one forward/loss evaluation.
