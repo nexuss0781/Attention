@@ -34,60 +34,46 @@ TEST(ExactDecompositionTest, AlgebraicEquivalence) {
         k[i] = dist(gen);
     }
     
-    // Compute standard attention scores
-    std::vector<f32> standard_scores(n * n);
-    f32 sigma_sq = std::sqrt(static_cast<f32>(d_k));
-    
-    for (size_t i = 0; i < n; ++i) {
-        for (size_t j = 0; j < n; ++j) {
-            // Compute dot product q_i . k_j
-            f32 dot = 0.0f;
-            for (size_t dim = 0; dim < d; ++dim) {
-                dot += q[i * d + dim] * k[j * d + dim];
-            }
-            standard_scores[i * n + j] = std::exp(dot / sigma_sq);
-        }
-    }
-    
-    // Compute Phase 1 outputs
+    // Compute Phase 1 outputs before the reference comparison. The reference
+    // remains exhaustive over all token pairs, but it streams one pair at a
+    // time so the test does not allocate an n x n score matrix.
+    const f32 sigma_sq = std::sqrt(static_cast<f32>(d_k));
     std::vector<f32> query_scales(n);
     std::vector<f32> key_weights(n);
     f32 sigma_squared;
-    
+
     Status status = exact_decomposition(
         q.data(), k.data(), n, d, d_k,
         1e-6f, -80.0f, 80.0f,
         query_scales.data(), key_weights.data(), &sigma_squared
     );
-    
+
     EXPECT_EQ(status, Status::OK);
-    
-    // Compute S'_ij = a_i * w_j * exp(-||q_i - k_j||^2 / 2*sigma^2)
-    std::vector<f32> phase1_scores(n * n);
-    
+    ASSERT_EQ(status, Status::OK);
+
+    // Compare the standard dot-product formulation with
+    // S'_ij = a_i * w_j * exp(-||q_i - k_j||^2 / 2*sigma^2)
+    f32 max_rel_error = 0.0f;
     for (size_t i = 0; i < n; ++i) {
         for (size_t j = 0; j < n; ++j) {
-            // Compute ||q_i - k_j||^2
+            f32 dot = 0.0f;
             f32 dist_sq = 0.0f;
             for (size_t dim = 0; dim < d; ++dim) {
-                f32 diff = q[i * d + dim] - k[j * d + dim];
+                dot += q[i * d + dim] * k[j * d + dim];
+                const f32 diff = q[i * d + dim] - k[j * d + dim];
                 dist_sq += diff * diff;
             }
-            
-            f32 gaussian = std::exp(-dist_sq / (2.0f * sigma_squared));
-            phase1_scores[i * n + j] = query_scales[i] * key_weights[j] * gaussian;
+            const f32 standard_score = std::exp(dot / sigma_sq);
+            const f32 gaussian = std::exp(-dist_sq / (2.0f * sigma_squared));
+            const f32 phase1_score = query_scales[i] * key_weights[j] * gaussian;
+            const f32 abs_error = std::abs(standard_score - phase1_score);
+            const f32 rel_error = (std::abs(standard_score) > 1e-10f)
+                ? abs_error / std::abs(standard_score)
+                : abs_error;
+            max_rel_error = std::max(max_rel_error, rel_error);
         }
     }
-    
-    // Measure max relative error
-    f32 max_rel_error = 0.0f;
-    for (size_t i = 0; i < n * n; ++i) {
-        f32 abs_error = std::abs(standard_scores[i] - phase1_scores[i]);
-        f32 rel_error = (std::abs(standard_scores[i]) > 1e-10f) ?
-                        abs_error / std::abs(standard_scores[i]) : abs_error;
-        max_rel_error = std::max(max_rel_error, rel_error);
-    }
-    
+
     // Pass criterion: relative error < 10^-5 for f32
     EXPECT_LT(max_rel_error, 1e-5f);
 }
