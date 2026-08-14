@@ -238,8 +238,8 @@ Attention is complete only when all of the following are true:
 
 ### 2.3 Implement the transformer blocks
 
-- [ ] Implement token embeddings.
-- [ ] Implement positional representation.
+- [x] Implement token embeddings in `attention::TokenEmbedding`.
+- [x] Implement deterministic sinusoidal positional representation in `attention::SinusoidalPositionEncoding`.
 - [ ] Implement query, key, and value projections.
 - [ ] Implement causal attention masking.
 - [ ] Implement the attention score and value aggregation path.
@@ -269,7 +269,7 @@ Attention is complete only when all of the following are true:
 
 ## Current Implementation Position
 
-The current implementation position is the **validated architecture-configuration and tensor/parameter foundation**. `attention::TransformerConfig` validates model dimensions and causal/F32 constraints, computes head size, estimates parameter count and parameter bytes, estimates activation memory, and has dedicated tests. `attention::Tensor` now provides checked contiguous F32 CPU storage with row-major strides, and `attention::ParameterStore` provides deterministic initialization, paired gradients, stable names, and deterministic traversal. The next implementation step is token embeddings, positional representation, and a composable transformer block contract.
+The current implementation position is the **validated architecture configuration, tensor/parameter foundation, embedding path, and positional representation**. `attention::TokenEmbedding` maps bounded token IDs to `[batch, sequence, hidden]` tensors through a stable parameter, while `attention::SinusoidalPositionEncoding` adds a deterministic non-trainable positional signal. The next implementation step is the projection and causal-attention contract.
 
 ## Stage 3 — Tokenizer and Text Representation
 
