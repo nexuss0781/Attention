@@ -301,6 +301,19 @@ The next work must follow the checklist in order. The linear attention aggregati
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
+### Long-Context Quality Validation Status
+
+- [x] Define the non-smoke comparison protocol in `docs/QUALITY_COMPARISON_PROTOCOL.md`.
+- [x] Define matched ordinary-transformer and efficient-path comparison requirements.
+- [x] Define real-data evaluation requirements using versioned held-out data and long-context task metrics.
+- [x] Define 100M-context no-truncation, no-position-reset, distance-curve, and resource-accounting gates.
+- [ ] Implement a trainable transformer and ordinary-attention reference with matched parameters.
+- [ ] Implement tokenizer, real-data loader, language-model loss, and checkpointed training.
+- [ ] Run PG-19 held-out perplexity/NLL evaluation.
+- [ ] Run long-context retrieval and generation evaluation through at least 200K tokens before attempting 100M.
+- [ ] Run an end-to-end 100M-token evaluation that consumes every token and reports quality versus distance.
+- [ ] Accept or reject the 100M quality claim using predeclared thresholds and reproducible evidence.
+
 ## Stage 3 — Tokenizer and Text Representation
 
 **Purpose:** Create the stable text representation shared by training, evaluation, inference, conversations, and tools.
