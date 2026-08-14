@@ -2,7 +2,7 @@
 
 Attention Phase 1 is a C++20 numerical kernel for metric-aware attention geometry. It assembles a positive-definite learned metric, computes a symmetric whitening operator, transforms query and key coordinates, and evaluates the scalar Gaussian decomposition factors required by later attention stages.
 
-The current release is intentionally a **numerical foundation plus the first transformer-architecture foundation**, not a complete transformer or language model. It does not yet execute transformer blocks, tokenize text, consume values into normalized attention outputs, or provide a language-generation runtime. The `attention::TransformerConfig` component validates planned architecture shape and computes deterministic parameter and activation-memory estimates. The F32 CPU tensor and parameter foundation now provides checked row-major storage, deterministic initialization, gradient buffers, and stable parameter names. Token embeddings, sinusoidal positions, QKV projections, and a zero-storage streaming causal mask are implemented; dense token-pair attention remains intentionally unsupported.
+The current release is intentionally a **numerical foundation plus the first transformer-architecture foundation**, not a complete transformer or language model. It does not yet execute transformer blocks, tokenize text, consume values into normalized attention outputs, or provide a language-generation runtime. The `attention::TransformerConfig` component validates planned architecture shape and computes deterministic parameter and activation-memory estimates. The F32 CPU tensor and parameter foundation now provides checked row-major storage, deterministic initialization, gradient buffers, and stable parameter names. Token embeddings, sinusoidal positions, QKV projections, a zero-storage streaming causal mask, and a positive-feature-map linear causal aggregation path are implemented; dense token-pair attention remains intentionally unsupported.
 
 ## Pipeline
 
@@ -31,7 +31,8 @@ The metric exposed to callers and the whitening operator are kept consistent aft
 │   ├── token_embedding.h
 │   ├── positional_encoding.h
 │   ├── qkv_projection.h
-│   └── causal_mask.h
+│   ├── causal_mask.h
+│   └── linear_attention.h
 ├── include/smao_phase1/
 │   ├── smao_phase1.h
 │   └── core/
@@ -50,9 +51,12 @@ The metric exposed to callers and the whitening operator are kept consistent aft
 │   ├── positional_encoding.cpp
 │   ├── qkv_projection.cpp
 │   ├── causal_mask.cpp
+│   ├── linear_attention.cpp
 │   └── c_api.cpp
 ├── tests/
-└── benchmarks/
+├── benchmarks/
+│   ├── benchmark_throughput.cpp
+│   └── benchmark_linear_attention.cpp
 ```
 
 ## Requirements

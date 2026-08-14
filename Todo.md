@@ -243,7 +243,7 @@ Attention is complete only when all of the following are true:
 - [x] Implement deterministic sinusoidal positional representation in `attention::SinusoidalPositionEncoding`.
 - [x] Implement query, key, and value projections in `attention::QKVProjection`.
 - [x] Implement streaming causal attention masking in `attention::CausalMask` without a dense sequence-by-sequence tensor.
-- [ ] Implement the attention score and value aggregation path.
+- [x] Implement the linear feature-map attention score and value aggregation path in `attention::LinearCausalAttention`; dense softmax score matrices remain intentionally excluded.
 - [ ] Integrate the intended Attention/SMAO kernel boundary without hiding incompatible semantics.
 - [ ] Implement feed-forward or gated feed-forward layers.
 - [ ] Implement normalization.
@@ -270,7 +270,7 @@ Attention is complete only when all of the following are true:
 
 ## Current Implementation Position
 
-The current implementation position is **Stage 2.3, partially complete**. The verified implementation now includes the architecture configuration, F32 CPU tensor foundation, deterministic parameter store, token embeddings, sinusoidal positional representation, per-token QKV projections, and a zero-storage streaming causal mask. The full transformer graph, attention aggregation, training execution, and checkpoint serialization are not yet complete.
+The current implementation position is **Stage 2.3, with linear aggregation implemented and the Attention/SMAO boundary next**. The verified implementation includes the architecture configuration, F32 CPU tensor foundation, deterministic parameter store, token embeddings, sinusoidal positional representation, per-token QKV projections, a zero-storage streaming causal mask, and `attention::LinearCausalAttention`. The full transformer graph, training execution, and checkpoint serialization are not yet complete.
 
 ### Verified State Snapshot
 
@@ -280,14 +280,14 @@ The current implementation position is **Stage 2.3, partially complete**. The ve
 | Stage 1 | Complete | `docs/STAGE1_NUMERICAL_GATE_REPORT.md`; release and sanitizer validation |
 | Stage 2.1 | Partially complete | Configuration schema, validation, parameter counts, and activation estimates are complete; full inference-memory estimation and deterministic serialization remain pending |
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
-| Stage 2.3 | In progress | Embedding, positional, QKV, and causal-mask items are complete; aggregation and later transformer blocks remain pending |
+| Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, and linear aggregation items are complete; SMAO integration and later transformer blocks remain pending |
 | Stage 2.4 | Not started | Forward loss, backward propagation, gradient flow, deterministic forward, and checkpoint reload remain pending |
-| Current test state | Verified | `53/53` tests pass in Release and portable sanitizer configurations |
+| Current test state | Verified | `56/56` tests pass in Release and portable sanitizer configurations; dedicated linear benchmark also passes |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. First, design and document a **linear attention aggregation** strategy whose state is bounded by hidden/head dimensions and per-token outputs; dense softmax score matrices are prohibited. Second, implement and test streaming score/value aggregation without allocating a query-key matrix. Third, document and test the Attention/SMAO kernel boundary so incompatible semantics are explicit rather than hidden. Fourth, implement feed-forward layers, normalization, residual connections, final output processing, vocabulary projection, and autoregressive logits as separate composable modules. Fifth, complete the Stage 2.1 inference-memory estimate and deterministic configuration serialization. Sixth, implement the Stage 2.4 forward pass, language-model loss, backward propagation, gradient checks, determinism tests, malformed-configuration tests, and checkpoint reload equivalence.
+The next work must follow the checklist in order. The linear attention aggregation contract and implementation are now complete and verified. First, document and test the Attention/SMAO semantic boundary so incompatible metric-aware and feature-map semantics are explicit rather than hidden. Second, implement feed-forward layers, normalization, residual connections, final output processing, vocabulary projection, and autoregressive logits as separate composable modules. Third, complete the Stage 2.1 inference-memory estimate and deterministic configuration serialization. Fourth, implement the Stage 2.4 forward pass, language-model loss, backward propagation, gradient checks, determinism tests, malformed-configuration tests, and checkpoint reload equivalence.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 

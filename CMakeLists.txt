@@ -91,6 +91,7 @@ set(ATTENTION_SOURCES
     src/positional_encoding.cpp
     src/qkv_projection.cpp
     src/causal_mask.cpp
+    src/linear_attention.cpp
     src/core/types.cpp
     src/core/exact_decomposition.cpp
     src/core/metric_assembly.cpp
@@ -109,6 +110,7 @@ set(ATTENTION_HEADERS
     include/attention/positional_encoding.h
     include/attention/qkv_projection.h
     include/attention/causal_mask.h
+    include/attention/linear_attention.h
     include/smao_phase1/smao_phase1.h
     include/smao_phase1/core/types.h
     include/smao_phase1/core/exact_decomposition.h
@@ -162,6 +164,7 @@ if(ATTENTION_BUILD_TESTS)
         tests/test_tensor_parameter.cpp
         tests/test_embedding_positional.cpp
         tests/test_qkv_causal.cpp
+        tests/test_linear_attention.cpp
     )
     target_link_libraries(attention_tests PRIVATE attention_static GTest::gtest_main)
     target_compile_features(attention_tests PRIVATE cxx_std_20)
@@ -173,6 +176,10 @@ if(ATTENTION_BUILD_BENCHMARKS)
     add_executable(attention_benchmarks benchmarks/benchmark_throughput.cpp)
     target_link_libraries(attention_benchmarks PRIVATE attention_static)
     target_compile_features(attention_benchmarks PRIVATE cxx_std_20)
+
+    add_executable(attention_linear_benchmarks benchmarks/benchmark_linear_attention.cpp)
+    target_link_libraries(attention_linear_benchmarks PRIVATE attention_static)
+    target_compile_features(attention_linear_benchmarks PRIVATE cxx_std_20)
     if(ATTENTION_ENABLE_PERFORMANCE_TESTS)
         add_test(NAME AttentionPerformanceRegression
                  COMMAND attention_benchmarks --full --strict --repeats 5)
