@@ -74,10 +74,10 @@ smao_status_t smao_phase1_forward(const smao_phase1_input_t* input,
         return SMAO_ERROR_INVALID_INPUT;
     }
 
-    // The public contract requires zero initialization before first use. We
-    // only write a clean result after validation; callers must release an
-    // existing successful result before reusing the structure.
-    std::memset(output, 0, sizeof(*output));
+    // Zero-initialization is required before first use. Release also accepts
+    // an already-populated output, making repeated forward calls leak-free and
+    // leaving the structure empty on every failure path.
+    smao_phase1_release(output);
     if (!precision_supported(input->precision)) {
         return SMAO_ERROR_INVALID_INPUT;
     }
@@ -161,12 +161,14 @@ smao_status_t smao_phase1_forward(const smao_phase1_input_t* input,
 smao_status_t smao_anisotropic_distance(void* raw_handle,
                                          const float* q,
                                          const float* k,
+                                         size_t d,
                                          float* distance_squared) {
     if (raw_handle == nullptr || q == nullptr || k == nullptr || distance_squared == nullptr) {
         return SMAO_ERROR_INVALID_INPUT;
     }
     const auto* handle = static_cast<const DistanceHandle*>(raw_handle);
-    if (handle->d == 0 || handle->metric.rows() != static_cast<Eigen::Index>(handle->d) ||
+    if (handle->d == 0 || d != handle->d ||
+        handle->metric.rows() != static_cast<Eigen::Index>(handle->d) ||
         handle->metric.cols() != static_cast<Eigen::Index>(handle->d)) {
         return SMAO_ERROR_INVALID_INPUT;
     }

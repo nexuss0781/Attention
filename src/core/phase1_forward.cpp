@@ -14,6 +14,8 @@
 #include <limits>
 #include <utility>
 
+#include <Eigen/Eigenvalues>
+
 namespace smao {
 
 namespace {
@@ -45,10 +47,14 @@ Status validate_forward_fast(const Phase1Input& input) {
     return Status::OK;
 }
 
-bool whitening_matches_metric(const Phase1Output& output, f32 relative_tolerance) {
+f32 whitening_metric_residual(const Phase1Output& output) {
     if (output.metric_m.rows() != static_cast<Eigen::Index>(output.d) ||
+        output.metric_m.cols() != static_cast<Eigen::Index>(output.d) ||
         output.whitening_w.rows() != static_cast<Eigen::Index>(output.d) ||
-        !output.metric_m.allFinite() || !output.whitening_w.allFinite()) return false;
+        output.whitening_w.cols() != static_cast<Eigen::Index>(output.d) ||
+        !output.metric_m.allFinite() || !output.whitening_w.allFinite()) {
+        return std::numeric_limits<f32>::quiet_NaN();
+    }
     f32 maximum_relative_error = 0.0f;
     for (size_t i = 0; i < output.d; ++i) {
         for (size_t j = 0; j < output.d; ++j) {
@@ -62,7 +68,7 @@ bool whitening_matches_metric(const Phase1Output& output, f32 relative_tolerance
             maximum_relative_error = std::max(maximum_relative_error, static_cast<f32>(error));
         }
     }
-    return maximum_relative_error <= relative_tolerance;
+    return maximum_relative_error;
 }
 
 f32 distance_primitive_adapter(
@@ -174,7 +180,8 @@ Status phase1_forward_into(const Phase1Input& input, Phase1Output& output) {
         output.status = Status::Overflow;
         return output.status;
     }
-    if (!whitening_matches_metric(output, 2e-4f)) {
+    const f32 whitening_residual = whitening_metric_residual(output);
+    if (!std::isfinite(whitening_residual) || whitening_residual > 2e-4f) {
         output.status = Status::Eigendecomposition;
         return output.status;
     }
@@ -189,18 +196,41 @@ Phase1Output phase1_forward(const Phase1Input& input) {
     return output;
 }
 
+FrozenGateReport evaluate_frozen_gate(const Phase1Output& output) {
+    FrozenGateReport report;
+    report.output_status_ok = output.status == Status::OK;
+    report.dimensions_valid = output.n > 0 && output.d > 0 &&
+        output.metric_m.rows() == static_cast<Eigen::Index>(output.d) &&
+        output.metric_m.cols() == static_cast<Eigen::Index>(output.d) &&
+        output.whitening_w.rows() == static_cast<Eigen::Index>(output.d) &&
+        output.whitening_w.cols() == static_cast<Eigen::Index>(output.d);
+    report.condition_number = output.condition_number;
+    report.finite_values = report.dimensions_valid &&
+        output.whitened_q.allFinite() && output.whitened_k.allFinite() &&
+        output.query_scales.allFinite() && output.key_weights.allFinite() &&
+        output.metric_m.allFinite() && output.whitening_w.allFinite() &&
+        std::isfinite(output.condition_number) && std::isfinite(output.sigma_squared);
+    report.condition_number_valid = report.finite_values &&
+        output.condition_number > 0.0f &&
+        output.condition_number <= CONDITION_NUMBER_MAX_DEFAULT;
+
+    if (report.dimensions_valid && report.finite_values) {
+        Eigen::SelfAdjointEigenSolver<MatrixXf> solver(
+            output.metric_m, Eigen::EigenvaluesOnly);
+        if (solver.info() == Eigen::Success && solver.eigenvalues().size() > 0) {
+            report.minimum_eigenvalue = solver.eigenvalues().minCoeff();
+        }
+    }
+    report.minimum_eigenvalue_valid = std::isfinite(report.minimum_eigenvalue) &&
+        report.minimum_eigenvalue >= LAMBDA_MIN_THRESHOLD;
+    report.whitening_residual = whitening_metric_residual(output);
+    report.whitening_isometry_valid = std::isfinite(report.whitening_residual) &&
+        report.whitening_residual <= 2e-4f;
+    return report;
+}
+
 bool check_frozen_gate_criteria(const Phase1Output& output) {
-    if (output.status != Status::OK || output.n == 0 || output.d == 0) {
-        return false;
-    }
-    if (!(output.condition_number > 0.0f) || output.condition_number > 1e4f) {
-        return false;
-    }
-    if (!output.metric_m.allFinite() || !output.whitening_w.allFinite() ||
-        !std::isfinite(output.sigma_squared)) {
-        return false;
-    }
-    return whitening_matches_metric(output, 2e-4f);
+    return evaluate_frozen_gate(output).passed();
 }
 
 DistancePrimitiveFn get_distance_primitive(const Phase1Output& output) {

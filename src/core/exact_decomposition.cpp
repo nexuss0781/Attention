@@ -115,7 +115,9 @@ Status exact_decomposition_pair_prevalidated(
 
     // Compute both norm arrays in one pass over Q and K. This removes two
     // independent matrix reductions from the end-to-end forward path.
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
+#endif
     for (long long row = 0; row < static_cast<long long>(n); ++row) {
         const size_t offset = static_cast<size_t>(row) * d;
         f32 q0 = 0.0f, q1 = 0.0f, q2 = 0.0f, q3 = 0.0f;

@@ -56,17 +56,23 @@ typedef struct {
 } smao_phase1_input_t;
 
 /*
- * The output structure must be zero-initialized before the first call. Before
- * reusing it, call smao_phase1_release. On failure, no output allocation is
- * retained and the structure remains safe to release.
+ * The output structure must be zero-initialized before the first call. A
+ * subsequent forward call safely releases the prior result before replacing
+ * it, so callers do not need a separate release for reuse. On failure, no
+ * output allocation is retained and the structure remains safe to release.
+ * Successful output buffers and internal_handle are owned by the output and
+ * must eventually be released with smao_phase1_release.
  */
 smao_status_t smao_phase1_forward(const smao_phase1_input_t* input,
                                    smao_phase1_output_t* output);
 
-/* The handle must be obtained from a successful forward call. */
+/* The handle must be obtained from a successful forward call and remains
+ * valid until the owning output is released or replaced by another forward
+ * call. The caller owns the query, key, and distance output buffers. */
 smao_status_t smao_anisotropic_distance(void* handle,
                                          const float* q,
                                          const float* k,
+                                         size_t d,
                                          float* distance_squared);
 
 void smao_phase1_release(smao_phase1_output_t* output);

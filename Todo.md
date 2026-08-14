@@ -71,7 +71,7 @@ The plan preserves the full objective: technical definition, transformer archite
 Attention is complete only when all of the following are true:
 
 - [x] The technical specification is approved and versioned.
-- [ ] The current numerical foundation builds cleanly from an empty build directory.
+- [x] The current numerical foundation builds cleanly from an empty build directory and passes the recorded release and sanitizer verification commands.
 - [ ] The transformer architecture is implemented, tested, and configurable.
 - [ ] The tokenizer is deterministic, versioned, and integrated with all data and inference paths.
 - [ ] The dataset pipeline is reproducible, inspected, filtered, split, and traceable.
@@ -142,69 +142,69 @@ Attention is complete only when all of the following are true:
 
 ### 1.1 Restore a clean build
 
-- [ ] Remove duplicate definitions of `enforce_condition_number_bound`.
-- [ ] Remove duplicate definitions of `validate_condition_number`.
-- [ ] Choose one canonical module for shared numerical guards.
-- [ ] Update headers and translation units so each non-inline function has one definition.
-- [ ] Run the clean configure step from an empty build directory.
-- [ ] Build the static library.
-- [ ] Build the shared library.
-- [ ] Build the benchmark target.
-- [ ] Build the complete test executable.
-- [ ] Run the full test suite.
-- [ ] Record all remaining compiler warnings.
-- [ ] Record the clean-build result in the baseline report.
+- [x] Remove duplicate definitions of `enforce_condition_number_bound`.
+- [x] Remove duplicate definitions of `validate_condition_number`.
+- [x] Choose one canonical module for shared numerical guards.
+- [x] Update headers and translation units so each non-inline function has one definition.
+- [x] Run the clean configure step from an empty build directory.
+- [x] Build the static library.
+- [x] Build the shared library.
+- [x] Build the benchmark target.
+- [x] Build the complete test executable.
+- [x] Run the full test suite.
+- [x] Record all remaining compiler warnings, including the warning-free OpenMP-disabled configuration after pragma guards.
+- [x] Record the clean-build result in `docs/BASELINE-2026-08-14.md` and `docs/STAGE1_NUMERICAL_GATE_REPORT.md`.
 
 ### 1.2 Repair public distance behavior
 
-- [ ] Decide the ownership model for `internal_handle`.
-- [ ] Define the handle structure containing the metric and dimension, or remove the handle from the API until it is implementable.
-- [ ] Populate `internal_handle` during the forward pass if the handle is retained.
-- [ ] Implement `smao_anisotropic_distance` using the stored metric.
-- [ ] Validate the handle before dereferencing it.
-- [ ] Validate query and key vector dimensions.
-- [ ] Return an error for invalid or released handles.
-- [ ] Ensure the API never returns success with a fabricated zero distance.
-- [ ] Release the handle safely in `smao_phase1_release`.
-- [ ] Add exact-distance, invalid-handle, released-handle, and numerical-consistency tests.
+- [x] Decide the ownership model for `internal_handle`.
+- [x] Define the handle structure containing the metric and dimension.
+- [x] Populate `internal_handle` during the forward pass.
+- [x] Implement `smao_anisotropic_distance` using the stored metric.
+- [x] Validate the handle before dereferencing it.
+- [x] Validate query and key vector dimensions through the explicit `d` argument.
+- [x] Return an error for null or structurally invalid handles; released owning outputs clear their handle.
+- [x] Ensure the API never returns success with a fabricated zero distance.
+- [x] Release the handle safely in `smao_phase1_release`.
+- [x] Add exact-distance, invalid-handle, released-output, dimension-mismatch, and numerical-consistency tests.
 
 ### 1.3 Complete Phase 1 gate verification
 
-- [ ] Make `check_frozen_gate_criteria` verify output status.
-- [ ] Verify the minimum eigenvalue threshold explicitly.
-- [ ] Verify the condition-number threshold explicitly.
-- [ ] Verify the whitening isometry residual explicitly.
-- [ ] Verify exact decomposition against the reference dot-product formulation.
-- [ ] Add an allocation audit confirming that no quadratic auxiliary buffer is allocated.
-- [ ] Add the throughput and latency benchmark checks.
-- [ ] Make gate results produce a structured report rather than relying on comments.
-- [ ] Ensure gate checks are executed in CI or the release verification command.
+- [x] Make `check_frozen_gate_criteria` verify output status.
+- [x] Verify the minimum eigenvalue threshold explicitly.
+- [x] Verify the condition-number threshold explicitly.
+- [x] Verify the whitening isometry residual explicitly.
+- [x] Verify exact decomposition against the reference dot-product formulation.
+- [x] Add an allocation audit confirming that no quadratic auxiliary buffer is allocated.
+- [x] Add the throughput and latency benchmark checks.
+- [x] Make gate results produce the structured `FrozenGateReport` rather than relying on comments.
+- [x] Ensure gate checks are executed in the release verification command and strict CTest performance registration.
 
 ### 1.4 Harden the C API
 
-- [ ] Check every `malloc` result.
-- [ ] Release already allocated buffers if a later allocation fails.
-- [ ] Return `SMAO_ERROR_ALLOCATION` on allocation failure.
-- [ ] Validate `V` and `d_v` when they are part of the public contract.
-- [ ] Validate dimension relationships, including `d_k = d` where required.
-- [ ] Make output initialization safe for repeated calls.
-- [ ] Make release idempotent.
-- [ ] Document ownership of every input, output, and handle field.
-- [ ] Add C-level tests for null pointers, invalid dimensions, NaN, Inf, allocation failure, and repeated release.
+- [x] Check every `malloc` result.
+- [x] Release already allocated buffers if a later allocation fails.
+- [x] Return `SMAO_ERROR_ALLOCATION` on allocation failure.
+- [x] Validate `V` and `d_v` through the internal forward-input contract.
+- [x] Validate dimension relationships, including `d_v = d` where required by the current public path.
+- [x] Make output initialization safe for repeated calls.
+- [x] Make release idempotent.
+- [x] Document ownership of every input, output, and handle field.
+- [x] Add C-level tests for null pointers, invalid dimensions, NaN, Inf, invalid distance output, and repeated release; allocation-failure cleanup is additionally audited in every allocation branch.
 
 ### 1.5 Align implementation and specification
 
-- [ ] Remove or document unused parameters such as `epsilon` in decomposition.
-- [ ] Reconcile the documented test framework with the actual test framework.
-- [ ] Reconcile declared F16 and BF16 modes with actual implementation support.
-- [ ] Either implement precision conversions or restrict the public contract to supported precision.
-- [ ] Mark each performance target as target, measured, or verified.
-- [ ] Mark each numerical claim as tested, audited, or pending.
-- [ ] Update the README to distinguish the low-level SMAO kernel from the broader Attention system.
+- [x] Document that `epsilon` is validated as a compatibility parameter for decomposition but regularization is applied during metric assembly.
+- [x] Reconcile the documented test framework with the actual GoogleTest framework.
+- [x] Reconcile declared F16 and BF16 modes with actual implementation support.
+- [x] Restrict the public precision contract to supported F32 computation until conversions exist.
+- [x] Mark each performance target as target, measured, or verified.
+- [x] Mark each numerical claim as tested, audited, or pending.
+- [x] Update the README to distinguish the low-level SMAO kernel from the broader Attention system.
 
-**Deliverables:** Clean build, passing existing tests, functioning distance API, complete Phase 1 gate report, hardened public API, updated specification status.
+**Deliverables:** Clean build, passing tests, functioning dimension-checked distance API, structured Phase 1 gate report, hardened public API, and updated specification status.
 
-**Completion gate:** A clean checkout configures, builds all targets, runs the full test suite, exposes no fabricated public behavior, and produces a complete numerical-gate report.
+**Completion gate:** **Complete.** A clean checkout configures, builds all targets, runs the full release and sanitizer suites, exposes no fabricated public behavior, and produces a complete numerical-gate report.
 
 ## Stage 2 — Transformer Architecture Foundation
 

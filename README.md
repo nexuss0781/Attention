@@ -94,9 +94,9 @@ The `--full` mode includes the documented `n=1,000,000, d=64` end-to-end case. T
 
 The public header is C-compatible and supports `SMAO_F32`. The declared F16 and BF16 modes are rejected explicitly until real conversion and computation paths are implemented.
 
-The output structure must be zero-initialized before the first call. A successful call allocates all output buffers and creates an opaque metric handle. Call `smao_phase1_release` exactly once before reusing or discarding a successful output. Release is idempotent for a zeroed or already released output.
+The output structure must be zero-initialized before the first call. A successful call allocates all output buffers and creates an opaque metric handle. A subsequent forward call safely releases the previous result before replacing it; explicit release is required before discarding a successful output. Release is idempotent for a zeroed or already released output.
 
-On failure, the forward API returns an error before allocating or copying result buffers. It never reports success with fabricated output. The distance API uses the opaque handle from a successful forward call and computes the actual metric distance.
+On failure, the forward API returns an error before copying result buffers and leaves the output safe to release. It never reports success with fabricated output. The distance API uses the opaque handle from a successful forward call, validates the explicit vector dimension, and computes the actual metric distance.
 
 ## Numerical Contracts
 
@@ -109,10 +109,11 @@ On failure, the forward API returns an error before allocating or copying result
 | Whitening | `WᵀW` and the returned metric represent the same quadratic form |
 | Allocation safety | No `O(n²)` forward-path result buffer is allocated |
 | Error propagation | Invalid input, numerical failure, allocation failure, and decomposition failure are distinct statuses |
+| Decomposition epsilon | Retained and validated for API compatibility; SPD regularization is applied during metric assembly |
 
 ## Tests
 
-The repository includes 38 registered tests covering algebraic decomposition, overflow handling, adversarial inputs, compensated accumulation, metric assembly, eigendecomposition, whitening, anisotropic-distance consistency, numerical guards, forward integration, analytical-versus-finite-difference metric gradients, and the public C API.
+The repository includes 40 registered tests covering algebraic decomposition, overflow handling, adversarial inputs, compensated accumulation, metric assembly, eigendecomposition, whitening, anisotropic-distance consistency, numerical guards, structured forward gates, analytical-versus-finite-difference metric gradients, repeated C API output replacement, and the public C API.
 
 The distribution-preservation test uses a memory-bounded weighted CDF comparison rather than allocating an `n × n` distribution matrix. The gradient test compares an analytical metric derivative against central finite differences instead of merely checking that a finite-difference value exists.
 

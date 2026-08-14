@@ -40,7 +40,9 @@ void whiten_row(const f32* input, const f32* whitening_w, size_t d, f32* output)
     for (size_t k = 0; k < d; ++k) {
         const f32 value = input[k];
         const f32* weight_row = whitening_w + k * d;
+#ifdef _OPENMP
 #pragma omp simd
+#endif
         for (size_t j = 0; j < d; ++j) {
             output[j] += value * weight_row[j];
         }
@@ -101,7 +103,9 @@ Status whiten_coordinates_pair_prevalidated(
     std::atomic<bool> output_overflow{false};
 #endif
     if (d <= 128) {
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
+#endif
         for (long long row = 0; row < static_cast<long long>(n); ++row) {
             const size_t offset = static_cast<size_t>(row) * d;
             f32* q_output = q_whitened + offset;
@@ -144,7 +148,9 @@ Status whiten_coordinates_pair_prevalidated(
                 const f32 q_value = q_input[dimension];
                 const f32 k_value = k_input[dimension];
                 const f32* weight_row = whitening_w + dimension * d;
+#ifdef _OPENMP
 #pragma omp simd
+#endif
                 for (size_t j = 0; j < d; ++j) {
                     q_output[j] += q_value * weight_row[j];
                     k_output[j] += k_value * weight_row[j];
@@ -205,7 +211,9 @@ Status whiten_coordinates_prevalidated(
     if (x == nullptr || whitening_w == nullptr || x_whitened == nullptr ||
         !valid_dimensions(n, d)) return Status::InvalidInput;
     if (d <= 128) {
+#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
+#endif
         for (long long row = 0; row < static_cast<long long>(n); ++row) {
             whiten_row(x + static_cast<size_t>(row) * d, whitening_w, d,
                        x_whitened + static_cast<size_t>(row) * d);

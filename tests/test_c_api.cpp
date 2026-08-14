@@ -34,7 +34,7 @@ TEST(CApiTest, ForwardDistanceAndRelease) {
     ASSERT_NE(output.metric_m, nullptr);
 
     float distance_squared = -1.0f;
-    ASSERT_EQ(smao_anisotropic_distance(output.internal_handle, q.data(), k.data(), &distance_squared), SMAO_OK);
+    ASSERT_EQ(smao_anisotropic_distance(output.internal_handle, q.data(), k.data(), input.d, &distance_squared), SMAO_OK);
     EXPECT_TRUE(std::isfinite(distance_squared));
     EXPECT_GT(distance_squared, 0.0f);
 
@@ -42,6 +42,32 @@ TEST(CApiTest, ForwardDistanceAndRelease) {
     EXPECT_EQ(output.internal_handle, nullptr);
     EXPECT_EQ(output.metric_m, nullptr);
     smao_phase1_release(&output);
+}
+
+TEST(CApiTest, RepeatedForwardReleasesPreviousOutput) {
+    std::vector<float> q, k, v, l;
+    const smao_phase1_input_t input = make_input(q, k, v, l);
+    smao_phase1_output_t output{};
+
+    ASSERT_EQ(smao_phase1_forward(&input, &output), SMAO_OK);
+    ASSERT_NE(output.internal_handle, nullptr);
+    ASSERT_NE(output.whitened_q, nullptr);
+    float distance_squared = -1.0f;
+    const size_t first_n = output.n;
+    const size_t first_d = output.d;
+
+    ASSERT_EQ(smao_phase1_forward(&input, &output), SMAO_OK);
+    EXPECT_EQ(output.n, first_n);
+    EXPECT_EQ(output.d, first_d);
+    EXPECT_NE(output.internal_handle, nullptr);
+    EXPECT_NE(output.whitened_q, nullptr);
+    EXPECT_EQ(smao_anisotropic_distance(output.internal_handle, q.data(), k.data(), input.d - 1, &distance_squared),
+              SMAO_ERROR_INVALID_INPUT);
+    EXPECT_EQ(smao_anisotropic_distance(output.internal_handle, q.data(), k.data(), input.d, nullptr),
+              SMAO_ERROR_INVALID_INPUT);
+
+    smao_phase1_release(&output);
+    EXPECT_EQ(output.internal_handle, nullptr);
 }
 
 TEST(CApiTest, InvalidInputDoesNotAllocateOrCrash) {

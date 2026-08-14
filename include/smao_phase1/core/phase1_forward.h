@@ -11,6 +11,8 @@
 
 #include "types.h"
 
+#include <limits>
+
 namespace smao {
 
 /**
@@ -47,15 +49,43 @@ Status phase1_forward_into(const Phase1Input& input, Phase1Output& output);
 Status validate_phase1_input(const Phase1Input& input);
 
 /**
- * @brief Check if Phase 1 output passes frozen gate criteria
+ * @brief Structured result of the frozen Phase 1 acceptance gate.
  *
- * Validates:
- * - Condition number kappa < 1e4
- * - SPD certification
- * - Isometry residual < 1e-6
+ * The report preserves both measured values and individual criterion results,
+ * allowing release verification and tests to explain why a gate passed or
+ * failed without relying on comments or log parsing.
+ */
+struct FrozenGateReport {
+    bool output_status_ok = false;
+    bool dimensions_valid = false;
+    bool finite_values = false;
+    bool minimum_eigenvalue_valid = false;
+    bool condition_number_valid = false;
+    bool whitening_isometry_valid = false;
+    f32 minimum_eigenvalue = std::numeric_limits<f32>::quiet_NaN();
+    f32 condition_number = std::numeric_limits<f32>::quiet_NaN();
+    f32 whitening_residual = std::numeric_limits<f32>::quiet_NaN();
+
+    bool passed() const {
+        return output_status_ok && dimensions_valid && finite_values &&
+               minimum_eigenvalue_valid && condition_number_valid &&
+               whitening_isometry_valid;
+    }
+};
+
+/**
+ * @brief Evaluate every frozen Phase 1 acceptance criterion.
  *
- * @param output Phase 1 output to check
- * @return true if output passes all gate criteria
+ * Criteria are: successful status and dimensions, finite output values,
+ * minimum eigenvalue at least `LAMBDA_MIN_THRESHOLD`, condition number at
+ * most `CONDITION_NUMBER_MAX_DEFAULT`, and whitening residual at most 2e-4.
+ */
+FrozenGateReport evaluate_frozen_gate(const Phase1Output& output);
+
+/**
+ * @brief Check if Phase 1 output passes frozen gate criteria.
+ *
+ * This is a compatibility convenience wrapper around `evaluate_frozen_gate`.
  */
 bool check_frozen_gate_criteria(const Phase1Output& output);
 

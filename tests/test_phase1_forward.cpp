@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "smao_phase1/core/phase1_forward.h"
+#include "smao_phase1/core/numerical_guards.h"
 
 #include <cmath>
 #include <limits>
@@ -79,6 +80,27 @@ TEST(Phase1ForwardTest, CompletePipeline) {
         EXPECT_GT(output.key_weights(i), 0.0f);
     }
     EXPECT_TRUE(check_frozen_gate_criteria(output));
+}
+
+TEST(Phase1ForwardTest, StructuredFrozenGateReport) {
+    constexpr size_t n = 128;
+    constexpr size_t d = 32;
+    std::vector<f32> q, k, v, l;
+    const Phase1Input input = make_valid_input(q, k, v, l, n, d);
+    const Phase1Output output = phase1_forward(input);
+    ASSERT_EQ(output.status, Status::OK);
+
+    const FrozenGateReport report = evaluate_frozen_gate(output);
+    EXPECT_TRUE(report.output_status_ok);
+    EXPECT_TRUE(report.dimensions_valid);
+    EXPECT_TRUE(report.finite_values);
+    EXPECT_TRUE(report.minimum_eigenvalue_valid);
+    EXPECT_TRUE(report.condition_number_valid);
+    EXPECT_TRUE(report.whitening_isometry_valid);
+    EXPECT_TRUE(report.passed());
+    EXPECT_GE(report.minimum_eigenvalue, LAMBDA_MIN_THRESHOLD);
+    EXPECT_LE(report.condition_number, CONDITION_NUMBER_MAX_DEFAULT);
+    EXPECT_LE(report.whitening_residual, 2e-4f);
 }
 
 TEST(Phase1ForwardTest, FrozenGateCriteria) {
