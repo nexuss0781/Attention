@@ -165,3 +165,34 @@ TEST(TransformerModelTest, BackwardRejectsInvalidDifferenceStepAndTargets) {
 
 } // namespace
 } // namespace attention
+
+namespace attention {
+namespace {
+
+TEST(TransformerModelTest, DeterministicForwardWithInitializedParameters) {
+    const TransformerConfig config = make_config();
+    TransformerModel model;
+    ParameterStore parameters;
+    ASSERT_TRUE(model.register_parameters(config, parameters));
+    ASSERT_TRUE(parameters.initialize(2026));
+    const std::vector<std::size_t> tokens{0, 1, 2, 2, 1, 0};
+    std::string error;
+    Tensor first;
+    Tensor second;
+    ASSERT_TRUE(model.forward(tokens, 2, 3, parameters, first, &error)) << error;
+    ASSERT_TRUE(model.forward(tokens, 2, 3, parameters, second, &error)) << error;
+    ASSERT_EQ(first.shape(), (std::vector<std::size_t>{2, 3, 3}));
+    ASSERT_EQ(first.size(), second.size());
+    for (std::size_t index = 0; index < first.size(); ++index) {
+        ASSERT_TRUE(std::isfinite(first.data()[index]));
+        EXPECT_FLOAT_EQ(first.data()[index], second.data()[index]);
+    }
+    float first_loss = 0.0f;
+    float second_loss = 0.0f;
+    ASSERT_TRUE(model.causal_loss(tokens, 2, 3, parameters, first_loss, &error)) << error;
+    ASSERT_TRUE(model.causal_loss(tokens, 2, 3, parameters, second_loss, &error)) << error;
+    EXPECT_FLOAT_EQ(first_loss, second_loss);
+}
+
+} // namespace
+} // namespace attention
