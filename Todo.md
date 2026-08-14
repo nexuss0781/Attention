@@ -292,12 +292,12 @@ The current implementation position is **Stage 2.4 complete for the correctness-
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
 | Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, efficient long-context stream, composable transformer blocks, and bounded hierarchical summaries are complete; exact retrieval remains unclaimed |
 | Stage 2.4 | Complete | Forward, causal loss, correctness-first backward propagation, gradient-flow checks, numerical gradient checks, deterministic forward, checkpoint reload, and malformed-input coverage are verified |
-| Current test state | Verified | `102/102` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
+| Current test state | Verified | `106/106` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Exact/selective 100M–1B-token recall remains unclaimed, and an analytical backward kernel remains a future performance milestone. The next ordered work is the long-context quality-validation prerequisites: a trainable transformer and matched ordinary-attention reference, tokenizer/data loading, checkpointed training, and real PG-19/long-context evaluation under the defined protocol.
+The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. The conservative `attention.byte_utf8.v1` tokenizer foundation is now also deterministic and verified, but it makes no production token-efficiency claim. Exact/selective 100M–1B-token recall remains unclaimed, and an analytical backward kernel remains a future performance milestone. Next, complete tokenizer efficiency measurements and freeze the tokenizer/data artifact before implementing the real training and evaluation pipeline.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
@@ -322,17 +322,10 @@ Every next step must update the corresponding checklist item only after its impl
 
 ### 3.1 Select and implement the tokenizer
 
-- [ ] Choose the tokenizer algorithm based on language and domain requirements.
-- [ ] Define normalization for whitespace.
-- [ ] Define normalization for punctuation.
-- [ ] Define capitalization behavior.
-- [ ] Define number and symbol behavior.
-- [ ] Define code-text behavior.
-- [ ] Define treatment of malformed Unicode.
-- [ ] Define beginning-of-sequence token.
-- [ ] Define end-of-sequence token.
-- [ ] Define padding token.
-- [ ] Define unknown token behavior.
+- [x] Freeze the conservative versioned `attention.byte_utf8.v1` tokenizer artifact as the deterministic Stage 3 representation foundation; final subword selection remains pending.
+- [x] Define v1 normalization behavior: preserve valid UTF-8 bytes without whitespace, punctuation, capitalization, number, symbol, or code rewriting.
+- [x] Define malformed Unicode behavior: reject noncanonical or truncated UTF-8 rather than silently replacing it.
+- [x] Define beginning-of-sequence, end-of-sequence, padding, and unknown token IDs.
 - [ ] Define conversation-role tokens.
 - [ ] Define tool-call and tool-result tokens.
 - [ ] Define memory-context markers.
@@ -340,9 +333,9 @@ Every next step must update the corresponding checklist item only after its impl
 
 ### 3.2 Validate tokenization
 
-- [ ] Test deterministic encoding.
-- [ ] Test deterministic decoding.
-- [ ] Test encode-decode round trips.
+- [x] Test deterministic encoding.
+- [x] Test deterministic decoding.
+- [x] Test encode-decode round trips across multilingual UTF-8, code, and structured samples.
 - [ ] Measure token efficiency on English.
 - [ ] Measure token efficiency on Amharic.
 - [ ] Measure token efficiency on bilingual text.
