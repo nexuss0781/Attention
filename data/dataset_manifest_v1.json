@@ -1,0 +1,54 @@
+{
+  "format": "attention.dataset_manifest.v1",
+  "dataset_id": "attention-stage4-pending",
+  "status": "policy-defined-not-yet-ingested",
+  "license_review_required": true,
+  "tokenizer": {
+    "version": "attention.byte_utf8.v1",
+    "vocabulary_size": 260,
+    "beginning_of_sequence": 256,
+    "end_of_sequence": 257,
+    "padding": 258,
+    "unknown": 259
+  },
+  "split_policy": {
+    "training": "approved_sources_only",
+    "validation": "source-disjoint_and_manifest-listed",
+    "test": "held_out_and_never_used_for_training",
+    "pg19_test_isolation": true
+  },
+  "composition_targets": {
+    "languages": {
+      "english": 0.70,
+      "amharic": 0.10,
+      "other": 0.20
+    },
+    "domains": {
+      "general_prose": 0.75,
+      "technical_code": 0.15,
+      "structured_tool_text": 0.10
+    },
+    "note": "These are declared targets only; the pipeline must report observed distributions and deviations rather than silently resampling."
+  },
+  "retention_policy": {
+    "retain_raw_only_when_permitted": true,
+    "deletion_rebuild_required": true,
+    "store_provenance_hashes": true
+  },
+  "sources": [],
+  "filtering": {
+    "exact_duplicates": "remove_and_count",
+    "near_duplicates": "remove_and_count",
+    "repeated_boilerplate": "detect_and_count",
+    "sensitive_data": "reject_or_quarantine",
+    "unsafe_or_disallowed_content": "reject_or_quarantine",
+    "corrupted_or_empty_documents": "reject_and_count"
+  },
+  "build": {
+    "source_retrieval_timestamps": [],
+    "input_checksums": [],
+    "token_shard_checksums": [],
+    "code_commit": null,
+    "manifest_immutable_after_publication": true
+  }
+}
