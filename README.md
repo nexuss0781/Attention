@@ -2,7 +2,7 @@
 
 Attention Phase 1 is a C++20 numerical kernel for metric-aware attention geometry. It assembles a positive-definite learned metric, computes a symmetric whitening operator, transforms query and key coordinates, and evaluates the scalar Gaussian decomposition factors required by later attention stages.
 
-The current release is intentionally a **numerical foundation plus the first transformer-architecture foundation**, not a complete transformer or language model. It does not yet execute transformer blocks, tokenize text, consume values into normalized attention outputs, or provide a language-generation runtime. The `attention::TransformerConfig` component validates planned architecture shape and computes deterministic parameter and activation-memory estimates. The F32 CPU tensor and parameter foundation now provides checked row-major storage, deterministic initialization, gradient buffers, and stable parameter names. Token embeddings, sinusoidal positions, QKV projections, a zero-storage streaming causal mask, and a positive-feature-map linear causal aggregation path are implemented; dense token-pair attention remains intentionally unsupported.
+The current release is intentionally a **numerical foundation plus the first transformer-architecture foundation**, not a complete transformer or language model. It does not yet execute transformer blocks, tokenize text, consume values into normalized attention outputs, or provide a language-generation runtime. The `attention::TransformerConfig` component validates planned architecture shape and computes deterministic parameter and activation-memory estimates. The F32 CPU tensor and parameter foundation now provides checked row-major storage, deterministic initialization, gradient buffers, and stable parameter names. Token embeddings, sinusoidal positions, QKV projections, a zero-storage streaming causal mask, a positive-feature-map linear causal aggregation path, and reusable chunk-streaming state are implemented. Absolute-position offsets preserve positions across chunks; dense token-pair attention remains intentionally unsupported. A 100M–1B logical window is treated as streamed recurrent context, not as a resident activation tensor.
 
 ## Pipeline
 
@@ -52,11 +52,13 @@ The metric exposed to callers and the whitening operator are kept consistent aft
 │   ├── qkv_projection.cpp
 │   ├── causal_mask.cpp
 │   ├── linear_attention.cpp
+│   ├── linear_attention_stream.cpp
 │   └── c_api.cpp
 ├── tests/
 ├── benchmarks/
 │   ├── benchmark_throughput.cpp
-│   └── benchmark_linear_attention.cpp
+│   ├── benchmark_linear_attention.cpp
+│   └── benchmark_linear_stream.cpp
 ```
 
 ## Requirements

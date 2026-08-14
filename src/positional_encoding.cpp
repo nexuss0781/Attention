@@ -28,6 +28,13 @@ bool SinusoidalPositionEncoding::reset(std::size_t context_length,
 bool SinusoidalPositionEncoding::apply(const Tensor& input,
                                        Tensor& output,
                                        std::string* error) const {
+    return apply_at(input, 0, output, error);
+}
+
+bool SinusoidalPositionEncoding::apply_at(const Tensor& input,
+                                          std::size_t position_offset,
+                                          Tensor& output,
+                                          std::string* error) const {
     if (context_length_ == 0 || hidden_size_ == 0) {
         set_error(error, "positional encoding is not initialized");
         return false;
@@ -46,8 +53,9 @@ bool SinusoidalPositionEncoding::apply(const Tensor& input,
         set_error(error, "positional encoding input shape does not match hidden size");
         return false;
     }
-    if (sequence_length > context_length_) {
-        set_error(error, "sequence length exceeds positional-encoding context length");
+    if (position_offset > context_length_ ||
+        sequence_length > context_length_ - position_offset) {
+        set_error(error, "absolute positional range exceeds positional-encoding context length");
         return false;
     }
     if (!input.all_finite()) {
@@ -60,7 +68,7 @@ bool SinusoidalPositionEncoding::apply(const Tensor& input,
     for (std::size_t batch = 0; batch < batch_size; ++batch) {
         for (std::size_t position = 0; position < sequence_length; ++position) {
             const std::size_t row_offset = (batch * sequence_length + position) * hidden_size_;
-            const double position_value = static_cast<double>(position);
+            const double position_value = static_cast<double>(position_offset + position);
             for (std::size_t dimension = 0; dimension < hidden_size_; ++dimension) {
                 const std::size_t pair_index = dimension / 2;
                 const double exponent = (2.0 * static_cast<double>(pair_index)) /

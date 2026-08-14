@@ -141,6 +141,16 @@ std::size_t LinearCausalAttention::hidden_size() const noexcept {
     return hidden_size_;
 }
 
+bool LinearCausalAttention::create_stream(std::size_t batch_size,
+                                          LinearAttentionState& state,
+                                          std::string* error) const noexcept {
+    if (context_length_ == 0 || hidden_size_ == 0 || batch_size == 0) {
+        if (error != nullptr) *error = "linear attention is not initialized or batch size is zero";
+        return false;
+    }
+    return state.reset(context_length_, batch_size, hidden_size_, epsilon_, error);
+}
+
 std::size_t LinearCausalAttention::state_bytes(std::size_t batch_size) const noexcept {
     const std::size_t maximum = std::numeric_limits<std::size_t>::max();
     if (batch_size == 0 || hidden_size_ == 0 ||

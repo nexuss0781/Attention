@@ -91,6 +91,25 @@ TEST(SinusoidalPositionEncodingTest, ProducesDeterministicExpectedValues) {
     }
 }
 
+TEST(SinusoidalPositionEncodingTest, AbsoluteOffsetMatchesFullSequencePositions) {
+    SinusoidalPositionEncoding encoding;
+    ASSERT_TRUE(encoding.reset(16, 4));
+    Tensor full_input;
+    ASSERT_TRUE(full_input.reset({1, 4, 4}));
+    full_input.fill(0.0f);
+    Tensor full_output;
+    ASSERT_TRUE(encoding.apply(full_input, full_output));
+
+    Tensor chunk_input;
+    ASSERT_TRUE(chunk_input.reset({1, 2, 4}));
+    chunk_input.fill(0.0f);
+    Tensor chunk_output;
+    ASSERT_TRUE(encoding.apply_at(chunk_input, 2, chunk_output));
+    for (std::size_t index = 0; index < chunk_output.size(); ++index) {
+        EXPECT_FLOAT_EQ(chunk_output.data()[index], full_output.data()[8 + index]);
+    }
+}
+
 TEST(SinusoidalPositionEncodingTest, SupportsOddHiddenSizeAndRejectsInvalidInputs) {
     SinusoidalPositionEncoding encoding;
     std::string error;
@@ -102,7 +121,7 @@ TEST(SinusoidalPositionEncodingTest, SupportsOddHiddenSizeAndRejectsInvalidInput
     ASSERT_TRUE(input.reset({1, 3, 3}));
     Tensor output;
     EXPECT_FALSE(encoding.apply(input, output, &error));
-    EXPECT_EQ(error, "sequence length exceeds positional-encoding context length");
+    EXPECT_EQ(error, "absolute positional range exceeds positional-encoding context length");
 
     ASSERT_TRUE(input.reset({1, 2, 3}));
     input.data()[0] = std::numeric_limits<float>::quiet_NaN();

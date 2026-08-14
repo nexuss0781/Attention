@@ -17,6 +17,10 @@ public:
     bool apply(const Tensor& input,
                Tensor& output,
                std::string* error = nullptr) const;
+    bool apply_at(const Tensor& input,
+                  std::size_t position_offset,
+                  Tensor& output,
+                  std::string* error = nullptr) const;
 
     [[nodiscard]] std::size_t context_length() const noexcept;
     [[nodiscard]] std::size_t hidden_size() const noexcept;
