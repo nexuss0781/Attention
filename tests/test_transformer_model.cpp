@@ -1,0 +1,94 @@
+#include "attention/transformer_model.h"
+
+#include <gtest/gtest.h>
+
+#include <cmath>
+#include <limits>
+#include <string>
+#include <vector>
+
+namespace attention {
+namespace {
+
+TransformerConfig make_config() {
+    TransformerConfig config;
+    config.vocabulary_size = 3;
+    config.context_length = 4;
+    config.layer_count = 1;
+    config.hidden_size = 2;
+    config.attention_head_count = 1;
+    config.feed_forward_size = 4;
+    return config;
+}
+
+TEST(TransformerModelTest, RunsCompleteForwardAndCausalLossDeterministically) {
+    const TransformerConfig config = make_config();
+    TransformerModel model;
+    ParameterStore parameters;
+    std::string error;
+    ASSERT_TRUE(model.register_parameters(config, parameters, &error)) << error;
+    ASSERT_TRUE(model.initialized());
+    EXPECT_EQ(model.vocabulary_size(), 3u);
+    EXPECT_EQ(model.context_length(), 4u);
+    EXPECT_EQ(model.hidden_size(), 2u);
+    EXPECT_EQ(model.layer_count(), 1u);
+
+    const std::vector<std::size_t> tokens{0, 1, 2};
+    Tensor first;
+    Tensor second;
+    ASSERT_TRUE(model.forward(tokens, 1, 3, parameters, first, &error)) << error;
+    ASSERT_TRUE(model.forward(tokens, 1, 3, parameters, second, &error)) << error;
+    ASSERT_EQ(first.shape(), (std::vector<std::size_t>{1, 3, 3}));
+    ASSERT_EQ(first.shape(), second.shape());
+    for (std::size_t index = 0; index < first.size(); ++index) {
+        EXPECT_TRUE(std::isfinite(first.data()[index]));
+        EXPECT_FLOAT_EQ(first.data()[index], second.data()[index]);
+        EXPECT_FLOAT_EQ(first.data()[index], 0.0f);
+    }
+
+    float loss = 0.0f;
+    ASSERT_TRUE(model.causal_loss(tokens, 1, 3, parameters, loss, &error)) << error;
+    EXPECT_NEAR(loss, std::log(3.0f), 1e-6f);
+}
+
+TEST(TransformerModelTest, ComputesStableCausalCrossEntropyFromFullLogits) {
+    Tensor logits;
+    ASSERT_TRUE(logits.reset({1, 3, 3}));
+    const std::vector<float> values{1.0f, 2.0f, 3.0f,
+                                    0.0f, 5.0f, 0.0f,
+                                    4.0f, 1.0f, 2.0f};
+    for (std::size_t index = 0; index < values.size(); ++index) logits.data()[index] = values[index];
+    const std::vector<std::size_t> targets{0, 2, 1};
+    float loss = 0.0f;
+    std::string error;
+    ASSERT_TRUE(TransformerModel::causal_cross_entropy(logits, targets, loss, &error)) << error;
+    const double first = std::log(std::exp(1.0) + std::exp(2.0) + std::exp(3.0)) - 3.0;
+    const double second = std::log(std::exp(0.0) + std::exp(5.0) + std::exp(0.0)) - 5.0;
+    EXPECT_NEAR(loss, static_cast<float>((first + second) / 2.0), 1e-6f);
+}
+
+TEST(TransformerModelTest, RejectsInvalidTokenShapesTargetsAndNonfiniteLogits) {
+    const TransformerConfig config = make_config();
+    TransformerModel model;
+    ParameterStore parameters;
+    ASSERT_TRUE(model.register_parameters(config, parameters));
+    Tensor logits;
+    std::string error;
+    EXPECT_FALSE(model.forward({0, 1}, 1, 3, parameters, logits, &error));
+    EXPECT_FALSE(model.forward({0, 1, 3}, 1, 3, parameters, logits, &error));
+    float loss = 0.0f;
+    EXPECT_FALSE(TransformerModel::causal_cross_entropy(logits, {0, 1, 2}, loss, &error));
+
+    Tensor invalid;
+    ASSERT_TRUE(invalid.reset({1, 2, 3}));
+    invalid.data()[0] = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_FALSE(TransformerModel::causal_cross_entropy(invalid, {0, 1}, loss, &error));
+
+    Tensor valid;
+    ASSERT_TRUE(valid.reset({1, 2, 3}));
+    EXPECT_FALSE(TransformerModel::causal_cross_entropy(valid, {0, 3}, loss, &error));
+    EXPECT_FALSE(TransformerModel::causal_cross_entropy(valid, {0}, loss, &error));
+}
+
+} // namespace
+} // namespace attention

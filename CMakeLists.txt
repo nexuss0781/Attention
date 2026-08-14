@@ -92,6 +92,7 @@ set(ATTENTION_SOURCES
     src/final_output.cpp
     src/vocabulary_projection.cpp
     src/transformer_block.cpp
+    src/transformer_model.cpp
     src/residual_connection.cpp
     src/token_embedding.cpp
     src/positional_encoding.cpp
@@ -120,6 +121,7 @@ set(ATTENTION_HEADERS
     include/attention/final_output.h
     include/attention/vocabulary_projection.h
     include/attention/transformer_block.h
+    include/attention/transformer_model.h
     include/attention/residual_connection.h
     include/attention/token_embedding.h
     include/attention/positional_encoding.h
@@ -184,6 +186,7 @@ if(ATTENTION_BUILD_TESTS)
         tests/test_final_output.cpp
         tests/test_vocabulary_projection.cpp
         tests/test_transformer_block.cpp
+        tests/test_transformer_model.cpp
         tests/test_residual_connection.cpp
         tests/test_embedding_positional.cpp
         tests/test_qkv_causal.cpp
