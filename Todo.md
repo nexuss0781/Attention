@@ -249,8 +249,8 @@ Attention is complete only when all of the following are true:
 - [x] Implement per-token LayerNorm normalization with F64 statistics, stable `norm.weight`/`norm.bias` parameters, and explicit finite-value checks; RMSNorm remains pending.
 - [x] Implement shape-safe out-of-place and allocation-free in-place residual connections with finite-sum checks.
 - [x] Implement distinct final output normalization through `attention::FinalOutput` with separate `final_norm.*` parameters; vocabulary projection remains separate.
-- [ ] Implement vocabulary projection.
-- [ ] Implement autoregressive logits output.
+- [x] Implement tied and untied vocabulary projection through `attention::VocabularyProjection`.
+- [x] Implement direct last-token autoregressive logits through `attention::AutoregressiveLogits` without allocating prior-token logits.
 - [ ] Make all blocks composable and independently testable.
 
 ### 2.3.1 Establish efficient long-context execution
@@ -292,12 +292,12 @@ The current implementation position is **Stage 2.3, with linear aggregation, the
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
 | Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, and efficient long-context stream are complete; hierarchical memory and later transformer blocks remain pending |
 | Stage 2.4 | Not started | Forward loss, backward propagation, gradient flow, deterministic forward, and checkpoint reload remain pending |
-| Current test state | Verified | `76/76` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
+| Current test state | Verified | `80/80` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. The linear attention aggregation, conservative Attention/SMAO boundary, efficient chunk-streaming foundation, standalone feed-forward expansion/projection layer, per-token LayerNorm, shape-safe residual connections, and distinct final output normalization are now complete and verified. First, implement vocabulary projection and autoregressive logits as separate composable modules. Second, complete the Stage 2.1 inference-memory estimate and deterministic configuration serialization. Third, add hierarchical summaries, external retrieval memory, or sparse long-range links before claiming exact or selective 100M–1B-token recall. Fourth, implement the Stage 2.4 forward pass, language-model loss, backward propagation, gradient checks, determinism tests, malformed-configuration tests, and checkpoint reload equivalence.
+The next work must follow the checklist in order. The linear attention aggregation, conservative Attention/SMAO boundary, efficient chunk-streaming foundation, standalone feed-forward expansion/projection layer, per-token LayerNorm, shape-safe residual connections, distinct final output normalization, tied/untied vocabulary projection, and direct autoregressive logits path are now complete and verified. First, integrate these components into a composable transformer block. Second, complete the Stage 2.1 inference-memory estimate and deterministic configuration serialization. Third, add hierarchical summaries, external retrieval memory, or sparse long-range links before claiming exact or selective 100M–1B-token recall. Fourth, implement the Stage 2.4 forward pass, language-model loss, backward propagation, gradient checks, determinism tests, malformed-configuration tests, and checkpoint reload equivalence.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
