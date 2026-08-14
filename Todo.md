@@ -221,9 +221,9 @@ Attention is complete only when all of the following are true:
 - [x] Calculate parameter count automatically.
 - [x] Calculate estimated activation memory automatically.
 - [x] Calculate parameter/checkpoint bytes automatically.
-- [ ] Calculate full inference-memory estimates once the tensor runtime exists.
+- [x] Calculate full inference-memory estimates with resident-sequence scaling, parameter bytes, workspaces, logits, token IDs, and dimension-bounded linear-attention state.
 - [x] Version the configuration through the source/API contract and tests.
-- [ ] Serialize and deserialize configurations deterministically.
+- [x] Serialize and deserialize configurations deterministically through the versioned `attention.transformer_config.v1` contract.
 
 ### 2.2 Implement tensor and parameter foundations
 
@@ -288,16 +288,16 @@ The current implementation position is **Stage 2.3, with linear aggregation, the
 |---|---|---|
 | Stage 0 | Complete | `Goal.md`, engineering conventions, baseline report, and all Stage 0 checklist items |
 | Stage 1 | Complete | `docs/STAGE1_NUMERICAL_GATE_REPORT.md`; release and sanitizer validation |
-| Stage 2.1 | Partially complete | Configuration schema, validation, parameter counts, and activation estimates are complete; full inference-memory estimation and deterministic serialization remain pending |
+| Stage 2.1 | Complete | Configuration schema, validation, parameter counts, activation estimates, full inference-memory estimation, and deterministic serialization are verified |
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
-| Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, and efficient long-context stream are complete; hierarchical memory and later transformer blocks remain pending |
+| Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, efficient long-context stream, and composable transformer blocks are complete; hierarchical memory remains pending |
 | Stage 2.4 | Not started | Forward loss, backward propagation, gradient flow, deterministic forward, and checkpoint reload remain pending |
-| Current test state | Verified | `84/84` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
+| Current test state | Verified | `89/89` tests pass in Release and portable sanitizer configurations; million-token chunk benchmark also passes |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. The linear attention aggregation, conservative Attention/SMAO boundary, efficient chunk-streaming foundation, standalone feed-forward expansion/projection layer, per-token LayerNorm, shape-safe residual connections, distinct final output normalization, tied/untied vocabulary projection, direct autoregressive logits path, and composable transformer block are now complete and verified. First, complete the Stage 2.1 inference-memory estimate and deterministic configuration serialization. Second, add hierarchical summaries, external retrieval memory, or sparse long-range links before claiming exact or selective 100M–1B-token recall. Third, implement the Stage 2.4 forward pass, language-model loss, backward propagation, gradient checks, determinism tests, malformed-configuration tests, and checkpoint reload equivalence.
+The next work must follow the checklist in order. The Stage 2.1 configuration schema, full inference-memory estimate, and deterministic serialization, together with the linear attention aggregation, conservative Attention/SMAO boundary, efficient chunk-streaming foundation, standalone feed-forward expansion/projection layer, per-token LayerNorm, shape-safe residual connections, distinct final output normalization, tied/untied vocabulary projection, direct autoregressive logits path, and composable transformer block are now complete and verified. First, add hierarchical summaries, external retrieval memory, or sparse long-range links before claiming exact or selective 100M–1B-token recall. Second, implement the Stage 2.4 forward pass, language-model loss, backward propagation, gradient checks, determinism tests, malformed-configuration tests, and checkpoint reload equivalence.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 

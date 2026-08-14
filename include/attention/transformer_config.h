@@ -34,6 +34,13 @@ struct TransformerConfig {
     [[nodiscard]] std::uint64_t parameter_count() const noexcept;
     [[nodiscard]] std::uint64_t parameter_bytes() const noexcept;
     [[nodiscard]] std::uint64_t estimated_activation_bytes(std::size_t batch_size = 1) const noexcept;
+    [[nodiscard]] std::uint64_t estimated_inference_memory_bytes(
+        std::size_t batch_size = 1,
+        std::size_t resident_sequence_length = 0) const noexcept;
+    bool serialize(std::string& output, std::string* error = nullptr) const noexcept;
+    static bool deserialize(const std::string& serialized,
+                            TransformerConfig& output,
+                            std::string* error = nullptr) noexcept;
 };
 
 } // namespace attention
