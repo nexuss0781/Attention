@@ -4,6 +4,7 @@
 #include <limits>
 #include <new>
 #include <vector>
+#include <utility>
 
 namespace attention {
 namespace {
@@ -37,6 +38,8 @@ float activate(float value, Activation activation) {
 }
 
 } // namespace
+
+FeedForward::FeedForward(std::string prefix) : prefix_(std::move(prefix)) {}
 
 bool FeedForward::register_parameters(const TransformerConfig& config,
                                       ParameterStore& parameters,

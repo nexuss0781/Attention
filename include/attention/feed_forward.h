@@ -12,6 +12,8 @@ namespace attention {
 
 class FeedForward {
 public:
+    explicit FeedForward(std::string prefix = "ffn");
+
     bool register_parameters(const TransformerConfig& config,
                              ParameterStore& parameters,
                              std::string* error = nullptr);
