@@ -1,0 +1,12 @@
+{
+  "version": "attention.tokenizer_measurement.v1",
+  "sources": {
+    "english_udhr": "https://www.un.org/en/about-us/universal-declaration-of-human-rights",
+    "amharic_wikipedia_ethiopia": "https://am.wikipedia.org/wiki/%E1%8A%A2%E1%89%B5%E1%8B%AE%E1%8C%B5%E1%8B%AB"
+  },
+  "local_samples": {
+    "code_cpp": "src/transformer_model.cpp",
+    "structured_checkpoint_test": "tests/test_checkpoint.cpp"
+  },
+  "note": "Samples are for deterministic representation statistics, not representative language-quality evaluation."
+}

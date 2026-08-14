@@ -219,6 +219,10 @@ if(ATTENTION_BUILD_BENCHMARKS)
     add_executable(attention_stream_benchmarks benchmarks/benchmark_linear_stream.cpp)
     target_link_libraries(attention_stream_benchmarks PRIVATE attention_static)
     target_compile_features(attention_stream_benchmarks PRIVATE cxx_std_20)
+
+    add_executable(attention_tokenizer_measurements benchmarks/benchmark_tokenizer.cpp)
+    target_link_libraries(attention_tokenizer_measurements PRIVATE attention_static)
+    target_compile_features(attention_tokenizer_measurements PRIVATE cxx_std_20)
     if(ATTENTION_ENABLE_PERFORMANCE_TESTS)
         add_test(NAME AttentionPerformanceRegression
                  COMMAND attention_benchmarks --full --strict --repeats 5)

@@ -1,0 +1,6 @@
+category,bytes,code_points,tokens,bytes_per_token,unknown_tokens,unknown_rate,round_trip
+english,16613,16552,16613,1.000000,0,0.000000,true
+amharic,61617,26643,61617,1.000000,0,0.000000,true
+bilingual,78231,43196,78231,1.000000,0,0.000000,true
+code,10899,10899,10899,1.000000,0,0.000000,true
+structured,5606,5606,5606,1.000000,0,0.000000,true
