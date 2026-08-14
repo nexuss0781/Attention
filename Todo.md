@@ -240,8 +240,8 @@ Attention is complete only when all of the following are true:
 
 - [x] Implement token embeddings in `attention::TokenEmbedding`.
 - [x] Implement deterministic sinusoidal positional representation in `attention::SinusoidalPositionEncoding`.
-- [ ] Implement query, key, and value projections.
-- [ ] Implement causal attention masking.
+- [x] Implement query, key, and value projections in `attention::QKVProjection`.
+- [x] Implement streaming causal attention masking in `attention::CausalMask` without a dense sequence-by-sequence tensor.
 - [ ] Implement the attention score and value aggregation path.
 - [ ] Integrate the intended Attention/SMAO kernel boundary without hiding incompatible semantics.
 - [ ] Implement feed-forward or gated feed-forward layers.
@@ -269,7 +269,7 @@ Attention is complete only when all of the following are true:
 
 ## Current Implementation Position
 
-The current implementation position is the **validated architecture configuration, tensor/parameter foundation, embedding path, and positional representation**. `attention::TokenEmbedding` maps bounded token IDs to `[batch, sequence, hidden]` tensors through a stable parameter, while `attention::SinusoidalPositionEncoding` adds a deterministic non-trainable positional signal. The next implementation step is the projection and causal-attention contract.
+The current implementation position is the **validated architecture configuration, tensor/parameter foundation, embedding path, positional representation, QKV projection path, and streaming causal mask**. `attention::QKVProjection` produces query, key, and value tensors with `O(batch × sequence × hidden²)` work, while `attention::CausalMask` uses zero sequence-dependent storage. The next implementation step is a linear attention aggregation strategy; dense token-pair score materialization is prohibited by the project contract.
 
 ## Stage 3 — Tokenizer and Text Representation
 
