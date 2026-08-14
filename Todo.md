@@ -70,7 +70,7 @@ The plan preserves the full objective: technical definition, transformer archite
 
 Attention is complete only when all of the following are true:
 
-- [ ] The technical specification is approved and versioned.
+- [x] The technical specification is approved and versioned.
 - [ ] The current numerical foundation builds cleanly from an empty build directory.
 - [ ] The transformer architecture is implemented, tested, and configurable.
 - [ ] The tokenizer is deterministic, versioned, and integrated with all data and inference paths.
@@ -95,44 +95,44 @@ Attention is complete only when all of the following are true:
 
 ### 0.1 Define the technical mission
 
-- [ ] Write the Attention technical specification in a versioned document.
-- [ ] Define Attention as a locally runnable transformer and future language-and-teaching foundation.
-- [ ] Define the intended English capability and record possible Amharic or bilingual support as an explicit design consideration.
-- [ ] Define the target personal-computer hardware, including CPU, GPU, VRAM, RAM, storage, and operating system.
-- [ ] Define the expected training hardware separately from the expected inference hardware.
-- [ ] Define the maximum acceptable model size for local use.
-- [ ] Define the target context length.
-- [ ] Define acceptable startup time, first-token latency, tokens per second, sustained runtime, memory use, and storage use.
-- [ ] Define the intended training precision and inference precision.
-- [ ] Define licensing and data-permission requirements.
-- [ ] Define which capabilities belong to Attention and which belong to future external systems.
-- [ ] Define measurable minimum quality for language understanding, generation, instruction following, reasoning demonstrations, and tool interaction.
+- [x] Write the Attention technical specification in the versioned `Goal.md` document.
+- [x] Define Attention as a locally runnable transformer and future language-and-teaching foundation.
+- [x] Define the intended English capability and record possible Amharic or bilingual support as an explicit design consideration.
+- [x] Define the target personal-computer hardware, including CPU, RAM, storage, operating environment, and verification assumptions.
+- [x] Define the expected training hardware separately from the expected inference hardware.
+- [x] Define the maximum acceptable model size for local use.
+- [x] Define the target context length.
+- [x] Define acceptable startup time, first-token latency, tokens per second, sustained runtime, memory use, and storage use.
+- [x] Define the intended training precision and inference precision.
+- [x] Define licensing and data-permission requirements.
+- [x] Define which capabilities belong to Attention and which belong to future external systems.
+- [x] Define measurable minimum quality for language understanding, generation, instruction following, reasoning demonstrations, and tool interaction.
 
 ### 0.2 Establish project conventions
 
-- [ ] Define the repository directory structure.
-- [ ] Define naming conventions for source files, configurations, datasets, checkpoints, experiments, and releases.
-- [ ] Define the versioning scheme for code, tokenizer, data, model architecture, checkpoints, and APIs.
-- [ ] Define the experiment-record format.
-- [ ] Define the required information for a commit or experiment note.
-- [ ] Define the clean-build command for every supported environment.
-- [ ] Define the test command and minimum test categories.
-- [ ] Define how failed experiments and known issues are recorded.
-- [ ] Define how external dependencies are pinned and audited.
+- [x] Define the repository directory structure.
+- [x] Define naming conventions for source files, configurations, datasets, checkpoints, experiments, and releases.
+- [x] Define the versioning scheme for code, tokenizer, data, model architecture, checkpoints, and APIs.
+- [x] Define the experiment-record format.
+- [x] Define the required information for a commit or experiment note.
+- [x] Define the clean-build command for supported release, sanitizer, and performance configurations.
+- [x] Define the test command and minimum test categories.
+- [x] Define how failed experiments and known issues are recorded.
+- [x] Define how external dependencies are pinned and audited.
 
 ### 0.3 Establish the baseline repository state
 
-- [ ] Record the current repository commit and branch.
-- [ ] Record the current source tree and build targets.
-- [ ] Record the current supported compiler, CMake version, Eigen version, BLAS/LAPACK version, and test framework.
-- [ ] Record the current clean-build result.
-- [ ] Record all known compiler warnings.
-- [ ] Record all known link failures and runtime stubs.
-- [ ] Create a baseline report before making implementation changes.
+- [x] Record the current repository commit and branch.
+- [x] Record the current source tree and build targets.
+- [x] Record the current supported compiler, CMake version, Eigen version, BLAS/LAPACK status, and test framework.
+- [x] Record the current clean-build result.
+- [x] Record all known compiler warnings.
+- [x] Record all known link failures and runtime stubs or intentionally incomplete scope.
+- [x] Create the versioned `docs/BASELINE-2026-08-14.md` report before further implementation changes.
 
-**Deliverables:** Versioned technical specification, hardware profile, project conventions, baseline repository report.
+**Deliverables:** `Goal.md`, `docs/ENGINEERING_CONVENTIONS.md`, and `docs/BASELINE-2026-08-14.md`.
 
-**Completion gate:** The project mission, constraints, responsibilities, and baseline state are explicit enough that implementation decisions can be evaluated against them.
+**Completion gate:** **Complete.** The project mission, constraints, responsibilities, supported baseline, build/test commands, and current limitations are explicit enough that implementation decisions can be evaluated against them.
 
 ## Stage 1 — Stabilize the Existing Numerical Foundation
 
