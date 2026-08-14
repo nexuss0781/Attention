@@ -97,6 +97,8 @@ set(ATTENTION_SOURCES
     src/transformer_model.cpp
     src/optimizer.cpp
     src/trainer.cpp
+    src/training_data.cpp
+    src/training_run.cpp
     src/residual_connection.cpp
     src/token_embedding.cpp
     src/positional_encoding.cpp
@@ -130,6 +132,8 @@ set(ATTENTION_HEADERS
     include/attention/transformer_model.h
     include/attention/optimizer.h
     include/attention/trainer.h
+    include/attention/training_data.h
+    include/attention/training_run.h
     include/attention/residual_connection.h
     include/attention/token_embedding.h
     include/attention/positional_encoding.h
@@ -198,6 +202,8 @@ if(ATTENTION_BUILD_TESTS)
         tests/test_transformer_block.cpp
         tests/test_transformer_model.cpp
         tests/test_trainer.cpp
+        tests/test_training_data.cpp
+        tests/test_training_run.cpp
         tests/test_residual_connection.cpp
         tests/test_embedding_positional.cpp
         tests/test_qkv_causal.cpp

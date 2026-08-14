@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <limits>
 #include <random>
 #include <utility>
 
@@ -116,6 +117,23 @@ bool ParameterStore::all_finite() const noexcept {
         if (!parameter.value.all_finite() || !parameter.gradient.all_finite()) return false;
     }
     return true;
+}
+
+float ParameterStore::gradient_l2_norm() const noexcept {
+    long double sum = 0.0L;
+    for (const Parameter& parameter : parameters_) {
+        for (std::size_t index = 0; index < parameter.gradient.size(); ++index) {
+            const float value = parameter.gradient.data()[index];
+            if (!std::isfinite(value)) return std::numeric_limits<float>::infinity();
+            sum += static_cast<long double>(value) * static_cast<long double>(value);
+            if (!std::isfinite(static_cast<double>(sum))) return std::numeric_limits<float>::infinity();
+        }
+    }
+    const long double norm = std::sqrt(sum);
+    if (!std::isfinite(static_cast<double>(norm)) || norm > std::numeric_limits<float>::max()) {
+        return std::numeric_limits<float>::infinity();
+    }
+    return static_cast<float>(norm);
 }
 
 std::vector<Parameter>& ParameterStore::parameters() noexcept {

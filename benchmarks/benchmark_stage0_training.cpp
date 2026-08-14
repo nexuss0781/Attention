@@ -1,12 +1,39 @@
 #include "attention/checkpoint.h"
 #include "attention/trainer.h"
+#include "attention/training_data.h"
+#include "attention/training_run.h"
 
+#include <cstdlib>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <string>
 #include <vector>
 
-int main() {
+namespace {
+
+bool load_tokens(const std::string& path, std::vector<std::size_t>& tokens, std::string& error) {
+    std::ifstream input(path);
+    if (!input) {
+        error = "cannot open token stream: " + path;
+        return false;
+    }
+    std::size_t token = 0;
+    while (input >> token) tokens.push_back(token);
+    if (!input.eof()) {
+        error = "token stream contains a non-integer value";
+        return false;
+    }
+    if (tokens.empty()) {
+        error = "token stream is empty";
+        return false;
+    }
+    return true;
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
     attention::TransformerConfig config;
     config.vocabulary_size = 3;
     config.context_length = 4;
@@ -15,27 +42,96 @@ int main() {
     config.attention_head_count = 1;
     config.feed_forward_size = 4;
 
+    std::vector<std::size_t> token_stream;
+    std::string error;
+    std::string dataset_id = "stage0.synthetic_debug";
+    if (argc >= 2) {
+        if (!load_tokens(argv[1], token_stream, error)) {
+            std::cerr << error << '\n';
+            return 1;
+        }
+        dataset_id = "stage0.token_stream_file";
+    } else {
+        const std::vector<std::size_t> pattern{0, 1, 2, 0};
+        for (int repeat = 0; repeat < 4; ++repeat) {
+            token_stream.insert(token_stream.end(), pattern.begin(), pattern.end());
+        }
+    }
+
+    attention::TrainingBatchLoader loader;
+    if (!loader.initialize(std::move(token_stream), 1, 4, true, &error)) {
+        std::cerr << "batch loader initialization failed: " << error << '\n';
+        return 1;
+    }
+
     attention::TransformerModel model;
     attention::ParameterStore parameters;
-    std::string error;
     if (!model.register_parameters(config, parameters, &error) || !parameters.initialize(17, &error)) {
         std::cerr << "initialization failed: " << error << '\n';
         return 1;
     }
-    const std::vector<std::size_t> tokens{0, 1, 2, 0};
-    attention::SgdOptimizer optimizer(0.05f);
-    std::cout << std::setprecision(9) << "step,loss_before,loss_after\n";
+    std::string architecture;
+    if (!config.serialize(architecture, &error)) {
+        std::cerr << "architecture serialization failed: " << error << '\n';
+        return 1;
+    }
+    attention::TrainingRunMetadata metadata;
+    metadata.run_id = "stage0-debug-training";
+    metadata.stage = "stage0_debug";
+    metadata.dataset_id = dataset_id;
+    metadata.dataset_revision = "fixed-local-v1";
+    const char* source_checksum = std::getenv("ATTENTION_SOURCE_SHA256");
+    metadata.source_checksums = source_checksum != nullptr ? source_checksum : "not-provided";
+    metadata.tokenizer_version = "attention.byte_utf8.v1";
+    metadata.tokenizer_vocabulary_size = 260;
+    metadata.architecture_serialization = architecture;
+    const char* commit = std::getenv("ATTENTION_CODE_COMMIT");
+    metadata.code_commit = commit != nullptr ? commit : "unknown";
+    metadata.seed = 17;
+    metadata.batch_size = loader.batch_size();
+    metadata.sequence_length = loader.sequence_length();
+    metadata.learning_rate = 0.05f;
+
+    attention::TrainingRunLogger logger;
+    if (!logger.initialize(metadata, &error)) {
+        std::cerr << "run metadata initialization failed: " << error << '\n';
+        return 1;
+    }
+    attention::SgdOptimizer optimizer(metadata.learning_rate);
+    std::cout << std::setprecision(9) << "step,loss_before,loss_after,gradient_l2_norm\n";
     float first_loss = 0.0f;
     float last_loss = 0.0f;
-    for (int step = 0; step < 4; ++step) {
+    attention::TrainingBatch last_batch;
+    for (std::uint64_t step = 0; !loader.exhausted(); ++step) {
+        attention::TrainingBatch batch;
+        if (!loader.next(batch, &error)) {
+            std::cerr << "batch loading failed: " << error << '\n';
+            return 1;
+        }
         attention::TrainingStepResult result;
-        if (!attention::Trainer::step(model, tokens, 1, 4, parameters, optimizer, result, &error)) {
+        if (!attention::Trainer::step(model, batch.token_ids, batch.batch_size,
+                                      batch.sequence_length, parameters, optimizer, result, &error)) {
             std::cerr << "training step failed: " << error << '\n';
+            return 1;
+        }
+        const float gradient_norm = parameters.gradient_l2_norm();
+        attention::TrainingLogRecord record;
+        record.step = step;
+        record.batch_index = loader.batches_emitted() - 1;
+        record.token_offset = batch.token_offset;
+        record.tokens_processed = loader.tokens_processed();
+        record.loss_before = result.loss_before;
+        record.loss_after = result.loss_after;
+        record.learning_rate = metadata.learning_rate;
+        record.gradient_l2_norm = gradient_norm;
+        if (!logger.append(record, &error)) {
+            std::cerr << "run logging failed: " << error << '\n';
             return 1;
         }
         if (step == 0) first_loss = result.loss_before;
         last_loss = result.loss_after;
-        std::cout << step << ',' << result.loss_before << ',' << result.loss_after << '\n';
+        last_batch = batch;
+        std::cout << step << ',' << result.loss_before << ',' << result.loss_after << ',' << gradient_norm << '\n';
     }
     if (!(last_loss < first_loss)) {
         std::cerr << "loss did not decrease" << '\n';
@@ -54,10 +150,25 @@ int main() {
         return 1;
     }
     float reloaded_loss = 0.0f;
-    if (!reloaded.causal_loss(tokens, 1, 4, reloaded_parameters, reloaded_loss, &error)) {
+    if (!reloaded.causal_loss(last_batch.token_ids, last_batch.batch_size,
+                              last_batch.sequence_length, reloaded_parameters,
+                              reloaded_loss, &error)) {
         std::cerr << "reloaded loss failed: " << error << '\n';
         return 1;
     }
+    std::string run_json;
+    if (!logger.serialize(run_json, &error)) {
+        std::cerr << "run serialization failed: " << error << '\n';
+        return 1;
+    }
+    const std::string output_path = argc >= 3 ? argv[2] : "/tmp/attention_stage0_training_run.json";
+    std::ofstream output(output_path);
+    if (!output) {
+        std::cerr << "cannot write run log: " << output_path << '\n';
+        return 1;
+    }
+    output << run_json;
     std::cout << "reloaded_loss," << reloaded_loss << '\n';
+    std::cout << "run_log," << output_path << '\n';
     return 0;
 }

@@ -29,6 +29,7 @@ public:
     [[nodiscard]] std::vector<std::string> names() const;
     [[nodiscard]] std::size_t size() const noexcept;
     [[nodiscard]] bool all_finite() const noexcept;
+    [[nodiscard]] float gradient_l2_norm() const noexcept;
 
     [[nodiscard]] std::vector<Parameter>& parameters() noexcept;
     [[nodiscard]] const std::vector<Parameter>& parameters() const noexcept;

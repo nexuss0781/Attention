@@ -292,13 +292,13 @@ The current implementation position is **Stage 5.1 training execution in progres
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
 | Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, efficient long-context stream, composable transformer blocks, and bounded hierarchical summaries are complete; exact retrieval remains unclaimed |
 | Stage 2.4 | Complete | Forward, causal loss, correctness-first backward propagation, gradient-flow checks, numerical gradient checks, deterministic forward, checkpoint reload, and malformed-input coverage are verified |
-| Stage 5.1 | In progress | Minimal finite-safe SGD training step and deterministic Stage 0 loss-decrease run are verified; batch loading, packing, scheduling, accumulation, validation, and run management remain |
-| Current test state | Verified | `112/112` tests pass in Release and portable sanitizer configurations; tokenizer measurement and sequence-length CSVs are deterministic and the million-token chunk benchmark also passes |
+| Stage 5.1 | In progress | Finite-safe SGD, deterministic batch loading, sequence packing, multi-step Stage 0 loss decrease, checkpoint continuity, and structured per-step logging are verified; validation, scheduling, accumulation, and resumable state remain |
+| Current test state | Verified | `119/119` tests pass in Release and portable sanitizer configurations; tokenizer measurement and sequence-length CSVs are deterministic and the Stage 0 batch-training run is reproducible |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, Stage 4.2 deterministic ingestion/normalization, and the first Stage 4.3 duplicate/leakage-control slice are verified. The first Stage 5.1 training slice now runs a real deterministic four-step causal SGD experiment and demonstrates loss reduction from `1.18923914` to `1.11430740` with exact checkpoint-reload loss continuity; see `docs/STAGE0_TRAINING_RESULT.md`. This is a training-signal result on the tiny fixed subset, not a language-quality claim. Next, keep training as the priority by adding batch/shard loading, sequence packing, run logging, validation, and resumable checkpoint state before scaling to the selected curriculum.
+The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, Stage 4.2 deterministic ingestion/normalization, and the first Stage 4.3 duplicate/leakage-control slice are verified. The first Stage 5.1 training slice now runs a deterministic file-backed batch stream, packs fixed causal sequences, logs per-step loss and gradient norms, and demonstrates loss reduction from `1.18923914` to `1.11430740` with exact checkpoint-reload loss continuity; see `docs/STAGE0_TRAINING_RESULT.md`. This is a training-signal result on the tiny debug stream, not a language-quality claim. Next, keep training as the priority by adding validation evaluation, configurable run control, and resumable optimizer/training state before scaling to the selected curriculum.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
@@ -423,8 +423,8 @@ Every next step must update the corresponding checklist item only after its impl
 
 ### 5.1 Implement the training loop
 
-- [ ] Implement batch loading.
-- [ ] Implement sequence packing.
+- [x] Implement batch loading.
+- [x] Implement sequence packing.
 - [x] Implement causal language-model loss.
 - [x] Implement forward execution in training mode.
 - [x] Implement backward propagation.
@@ -438,20 +438,20 @@ Every next step must update the corresponding checklist item only after its impl
 ### 5.2 Implement run management
 
 - [ ] Define the training-run configuration format.
-- [ ] Record random seed.
-- [ ] Record code commit.
-- [ ] Record architecture configuration.
-- [ ] Record tokenizer version.
-- [ ] Record dataset version.
+- [x] Record random seed.
+- [x] Record code commit.
+- [x] Record architecture configuration.
+- [x] Record tokenizer version.
+- [x] Record dataset version.
 - [ ] Record hardware information.
 - [ ] Record compiler and dependency versions.
 - [ ] Record training duration.
-- [ ] Record tokens processed.
-- [ ] Record loss and validation loss.
-- [ ] Record learning rate.
+- [x] Record tokens processed.
+- [x] Record loss; validation loss remains pending validation evaluation.
+- [x] Record learning rate.
 - [ ] Record throughput.
 - [ ] Record memory use.
-- [ ] Record gradient norms.
+- [x] Record gradient norms.
 - [ ] Record warnings and failures.
 
 ### 5.3 Implement checkpointing and recovery
