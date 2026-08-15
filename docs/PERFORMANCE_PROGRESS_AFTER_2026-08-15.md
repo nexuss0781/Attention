@@ -54,3 +54,9 @@ Commit `76751bb` makes the configured head count executable. With hidden size 32
 A matched microbenchmark on the same real token stream measured approximately 832K tokens/sec for four-head Attention, 2.15M–2.32M tokens/sec for the GRU comparator, 4.14M–4.53M tokens/sec for a diagonal SSM comparator, and 17.9K tokens/sec for the causal dense softmax Transformer at context 2,048. Attention therefore already dominates the dense Transformer at long context, but it does not yet dominate GRU or diagonal SSM raw throughput. This is an optimization target, not a result to conceal.
 
 The current architecture comparison is documented separately in `docs/ARCHITECTURE_COMPARISON_AUDIT_2026-08-15.md`.
+
+## Final after-audit snapshot
+
+At revision `28a7aa7`, the Release build passes **127/127 tests**. Shell syntax checks and Python compilation checks pass. The refined static audit finds no dense attention-score matrix, no `source <= position` prefix rebuild, and no forbidden token-pair allocation pattern in the core source, headers, or registered benchmarks.
+
+The final matched sweep remains approximately flat for four-head Attention at 0.827–0.841M tokens/sec from context 32 through 2,048. The comparable GRU reaches 2.09–2.40M tokens/sec, the diagonal SSM reaches 4.23–4.53M tokens/sec, and the causal softmax Transformer falls from 5.53M tokens/sec at context 32 to 18.8K tokens/sec at context 2,048. The honest verdict is therefore: Attention has the desired long-context scaling and beats dense softmax attention at long context, but it does not yet dominate optimized GRU or diagonal SSM kernels in raw throughput.
