@@ -25,8 +25,8 @@ TEST(TransformerConfigTest, ValidatesAndComputesDerivedValues) {
     ASSERT_TRUE(config.validate(&error)) << error;
     EXPECT_TRUE(error.empty());
     EXPECT_EQ(config.head_size(), 16u);
-    EXPECT_EQ(config.parameter_count(), 173416u);
-    EXPECT_EQ(config.parameter_bytes(), 173416u * sizeof(float));
+    EXPECT_EQ(config.parameter_count(), 156776u);
+    EXPECT_EQ(config.parameter_bytes(), 156776u * sizeof(float));
     EXPECT_EQ(config.estimated_activation_bytes(2), 1572864u);
 }
 
@@ -88,8 +88,8 @@ namespace {
 
 TEST(TransformerConfigTest, EstimatesFullInferenceMemoryWithResidentSequenceScaling) {
     const TransformerConfig config = make_valid_config();
-    EXPECT_EQ(config.estimated_inference_memory_bytes(2), 1686752u);
-    EXPECT_EQ(config.estimated_inference_memory_bytes(2, 16), 883040u);
+    EXPECT_EQ(config.estimated_inference_memory_bytes(2), 1620192u);
+    EXPECT_EQ(config.estimated_inference_memory_bytes(2, 16), 816480u);
     EXPECT_EQ(config.estimated_inference_memory_bytes(0), 0u);
     EXPECT_EQ(config.estimated_inference_memory_bytes(2, config.context_length + 1), 0u);
 }

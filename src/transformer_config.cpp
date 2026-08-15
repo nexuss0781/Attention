@@ -170,21 +170,21 @@ std::uint64_t TransformerConfig::parameter_count() const noexcept {
     if (v == 0 || c == 0 || l == 0 || h == 0 || f == 0) return 0;
 
     std::uint64_t total = 0;
-    if (!add_product(total, v, h) || !add_product(total, c, h)) return 0;
+    if (!add_product(total, v, h)) return 0;
+    if (!tie_embeddings && !add_product(total, v, h)) return 0;
 
+    // Three Q/K/V matrices and biases, two FFN matrices and biases, and
+    // two affine layer-normalization parameter pairs are registered per layer.
     std::uint64_t per_layer = 0;
-    if (!add_product(per_layer, 4, h, h) || !add_product(per_layer, 2, h, f) ||
-        !add_product(per_layer, 2, f) || !add_product(per_layer, 6, h)) return 0;
+    if (!add_product(per_layer, 3, h, h) || !add_product(per_layer, 2, h, f) ||
+        !add_fits(per_layer, f)) return 0;
+    per_layer += f;
+    if (!add_product(per_layer, 8, h)) return 0;
     if (!add_product(total, l, per_layer)) return 0;
 
-    if (!add_product(total, 2, h)) return 0;
-    if (!tie_embeddings) {
-        if (!add_product(total, v, h) || !add_fits(total, v)) return 0;
-        total += v;
-    } else {
-        if (!add_fits(total, v)) return 0;
-        total += v;
-    }
+    // Final normalization and the vocabulary bias are always registered.
+    if (!add_product(total, 2, h) || !add_fits(total, v)) return 0;
+    total += v;
     return total;
 }
 
