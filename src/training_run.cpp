@@ -38,7 +38,8 @@ std::string json_escape(const std::string& value) {
 
 bool finite_record(const TrainingLogRecord& record) {
     return std::isfinite(record.loss_before) && std::isfinite(record.loss_after) &&
-           std::isfinite(record.learning_rate) && std::isfinite(record.gradient_l2_norm);
+           std::isfinite(record.learning_rate) && std::isfinite(record.gradient_l2_norm) &&
+           std::isfinite(record.validation_loss);
 }
 
 } // namespace
@@ -112,7 +113,8 @@ bool TrainingRunLogger::serialize(std::string& output, std::string* error) const
              << ", \"loss_before\": " << record.loss_before
              << ", \"loss_after\": " << record.loss_after
              << ", \"learning_rate\": " << record.learning_rate
-             << ", \"gradient_l2_norm\": " << record.gradient_l2_norm << "}";
+             << ", \"gradient_l2_norm\": " << record.gradient_l2_norm
+             << ", \"validation_loss\": " << record.validation_loss << "}";
     }
     if (!records_.empty()) json << '\n';
     json << "  ]\n}\n";

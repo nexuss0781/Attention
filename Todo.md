@@ -292,13 +292,13 @@ The current implementation position is **Stage 5.1 training execution in progres
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
 | Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, efficient long-context stream, composable transformer blocks, and bounded hierarchical summaries are complete; exact retrieval remains unclaimed |
 | Stage 2.4 | Complete | Forward, causal loss, correctness-first backward propagation, gradient-flow checks, numerical gradient checks, deterministic forward, checkpoint reload, and malformed-input coverage are verified |
-| Stage 5.1 | In progress | Finite-safe SGD, deterministic batch loading, sequence packing, multi-step Stage 0 loss decrease, checkpoint continuity, and structured per-step logging are verified; validation, scheduling, accumulation, and resumable state remain |
-| Current test state | Verified | `119/119` tests pass in Release and portable sanitizer configurations; tokenizer measurement and sequence-length CSVs are deterministic and the Stage 0 batch-training run is reproducible |
+| Stage 5.1 | In progress | Finite-safe SGD, deterministic batch loading, sequence packing, multi-step Stage 0 loss decrease, held-out validation loss, checkpoint continuity, structured logging, and resume equivalence are verified; scheduling, accumulation, and full-scale data loading remain |
+| Current test state | Verified | `125/125` tests pass in Release and portable sanitizer configurations; Stage 0 training, held-out validation, persisted training-state reload, and interrupted-resume equivalence are deterministic |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, Stage 4.2 deterministic ingestion/normalization, and the first Stage 4.3 duplicate/leakage-control slice are verified. The first Stage 5.1 training slice now runs a deterministic file-backed batch stream, packs fixed causal sequences, logs per-step loss and gradient norms, and demonstrates loss reduction from `1.18923914` to `1.11430740` with exact checkpoint-reload loss continuity; see `docs/STAGE0_TRAINING_RESULT.md`. This is a training-signal result on the tiny debug stream, not a language-quality claim. Next, keep training as the priority by adding validation evaluation, configurable run control, and resumable optimizer/training state before scaling to the selected curriculum.
+The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, Stage 4.2 deterministic ingestion/normalization, and the first Stage 4.3 duplicate/leakage-control slice are verified. The Stage 5.1 training slice now runs a deterministic file-backed batch stream, packs fixed causal sequences, logs per-step training and held-out validation loss plus gradient norms, and demonstrates loss reduction from `1.18923914` to `1.11430740`. The persisted training-state envelope reproduces the final loss, and interrupted-versus-uninterrupted training produces identical final parameters; see `docs/STAGE0_VALIDATION_RESUME_RESULT.md`. This remains a diagnostic result on the tiny debug stream, not a language-quality claim. Next, add configurable run control and approved tokenized-shard preparation; FineWeb2 Stage 1 remains blocked until its approved subset and held-out split are ready.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
@@ -432,7 +432,7 @@ Every next step must update the corresponding checklist item only after its impl
 - [ ] Implement learning-rate scheduling.
 - [ ] Implement gradient accumulation.
 - [ ] Implement gradient clipping where required.
-- [ ] Implement validation evaluation.
+- [x] Implement validation evaluation.
 - [ ] Implement configurable logging intervals.
 
 ### 5.2 Implement run management
@@ -447,7 +447,7 @@ Every next step must update the corresponding checklist item only after its impl
 - [ ] Record compiler and dependency versions.
 - [ ] Record training duration.
 - [x] Record tokens processed.
-- [x] Record loss; validation loss remains pending validation evaluation.
+- [x] Record training loss and validation loss.
 - [x] Record learning rate.
 - [ ] Record throughput.
 - [ ] Record memory use.
@@ -456,30 +456,30 @@ Every next step must update the corresponding checklist item only after its impl
 
 ### 5.3 Implement checkpointing and recovery
 
-- [ ] Save model parameters.
-- [ ] Save optimizer state.
+- [x] Save model parameters.
+- [x] Save optimizer state (SGD learning rate state).
 - [ ] Save scheduler state.
 - [ ] Save gradient-accumulation state where required.
-- [ ] Save global step and token count.
-- [ ] Save configuration and metadata.
-- [ ] Save tokenizer version.
-- [ ] Save dataset version.
+- [x] Save global step and token count.
+- [x] Save configuration and metadata.
+- [x] Save tokenizer version.
+- [x] Save dataset version.
 - [ ] Save checksums.
-- [ ] Resume after interruption.
-- [ ] Test resume equivalence against uninterrupted training.
+- [x] Resume after interruption.
+- [x] Test resume equivalence against uninterrupted training.
 - [ ] Retain best validation checkpoint.
 - [ ] Retain periodic checkpoints.
 
 ### 5.4 Add numerical diagnostics
 
-- [ ] Detect NaNs.
-- [ ] Detect Infs.
+- [x] Detect NaNs.
+- [x] Detect Infs.
 - [ ] Detect exploding gradients.
 - [ ] Detect stalled loss.
-- [ ] Detect invalid learning-rate values.
+- [x] Detect invalid learning-rate values.
 - [ ] Detect data-loader failures.
 - [ ] Detect memory exhaustion.
-- [ ] Add short diagnostic runs before long runs.
+- [x] Add short diagnostic runs before long runs.
 - [ ] Add a tiny overfit configuration.
 - [ ] Store diagnostic reports with each run.
 

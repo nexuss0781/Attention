@@ -2,11 +2,14 @@
 #include "attention/trainer.h"
 #include "attention/training_data.h"
 #include "attention/training_run.h"
+#include "attention/training_checkpoint.h"
+#include "attention/validation.h"
 
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -97,10 +100,17 @@ int main(int argc, char** argv) {
         std::cerr << "run metadata initialization failed: " << error << '\n';
         return 1;
     }
+    const std::vector<std::size_t> validation_tokens{1, 2, 0, 1, 2, 0, 1, 2};
+    attention::TrainingBatchLoader validation_loader;
+    if (!validation_loader.initialize(validation_tokens, 1, 4, true, &error)) {
+        std::cerr << "validation loader initialization failed: " << error << '\n';
+        return 1;
+    }
     attention::SgdOptimizer optimizer(metadata.learning_rate);
-    std::cout << std::setprecision(9) << "step,loss_before,loss_after,gradient_l2_norm\n";
+    std::cout << std::setprecision(9) << "step,loss_before,loss_after,gradient_l2_norm,validation_loss\n";
     float first_loss = 0.0f;
     float last_loss = 0.0f;
+    float final_validation_loss = 0.0f;
     attention::TrainingBatch last_batch;
     for (std::uint64_t step = 0; !loader.exhausted(); ++step) {
         attention::TrainingBatch batch;
@@ -115,6 +125,13 @@ int main(int argc, char** argv) {
             return 1;
         }
         const float gradient_norm = parameters.gradient_l2_norm();
+        attention::ValidationResult validation_result;
+        if (!attention::ValidationEvaluator::evaluate(model, validation_loader, parameters,
+                                                      validation_result, &error)) {
+            std::cerr << "validation failed: " << error << '\n';
+            return 1;
+        }
+        final_validation_loss = validation_result.mean_loss;
         attention::TrainingLogRecord record;
         record.step = step;
         record.batch_index = loader.batches_emitted() - 1;
@@ -124,6 +141,7 @@ int main(int argc, char** argv) {
         record.loss_after = result.loss_after;
         record.learning_rate = metadata.learning_rate;
         record.gradient_l2_norm = gradient_norm;
+        record.validation_loss = validation_result.mean_loss;
         if (!logger.append(record, &error)) {
             std::cerr << "run logging failed: " << error << '\n';
             return 1;
@@ -131,7 +149,8 @@ int main(int argc, char** argv) {
         if (step == 0) first_loss = result.loss_before;
         last_loss = result.loss_after;
         last_batch = batch;
-        std::cout << step << ',' << result.loss_before << ',' << result.loss_after << ',' << gradient_norm << '\n';
+        std::cout << step << ',' << result.loss_before << ',' << result.loss_after << ','
+                  << gradient_norm << ',' << validation_result.mean_loss << '\n';
     }
     if (!(last_loss < first_loss)) {
         std::cerr << "loss did not decrease" << '\n';
@@ -156,6 +175,57 @@ int main(int argc, char** argv) {
         std::cerr << "reloaded loss failed: " << error << '\n';
         return 1;
     }
+    attention::TrainingProgress progress;
+    progress.run_id = metadata.run_id;
+    progress.dataset_id = metadata.dataset_id;
+    progress.dataset_revision = metadata.dataset_revision;
+    progress.global_step = loader.batches_emitted();
+    progress.tokens_processed = loader.tokens_processed();
+    progress.next_batch_index = loader.batches_emitted();
+    progress.learning_rate = metadata.learning_rate;
+    std::string training_checkpoint;
+    if (!attention::TrainingCheckpoint::serialize(config, parameters, progress,
+                                                 training_checkpoint, &error)) {
+        std::cerr << "training checkpoint serialization failed: " << error << '\n';
+        return 1;
+    }
+    const std::string training_checkpoint_path = argc >= 4
+                                                   ? argv[3]
+                                                   : "/tmp/attention_stage0_training_state.chk";
+    {
+        std::ofstream state_output(training_checkpoint_path, std::ios::binary);
+        if (!state_output) {
+            std::cerr << "cannot write training checkpoint: " << training_checkpoint_path << '\n';
+            return 1;
+        }
+        state_output << training_checkpoint;
+    }
+    std::ifstream state_input(training_checkpoint_path, std::ios::binary);
+    if (!state_input) {
+        std::cerr << "cannot read training checkpoint: " << training_checkpoint_path << '\n';
+        return 1;
+    }
+    const std::string persisted_training_checkpoint(
+        (std::istreambuf_iterator<char>(state_input)), std::istreambuf_iterator<char>());
+    attention::TransformerModel resumed_model;
+    attention::ParameterStore resumed_parameters;
+    attention::TrainingProgress resumed_progress;
+    if (!attention::TrainingCheckpoint::load(persisted_training_checkpoint, resumed_model,
+                                             resumed_parameters, resumed_progress, &error)) {
+        std::cerr << "training checkpoint reload failed: " << error << '\n';
+        return 1;
+    }
+    float resumed_loss = 0.0f;
+    if (!resumed_model.causal_loss(last_batch.token_ids, last_batch.batch_size,
+                                   last_batch.sequence_length, resumed_parameters,
+                                   resumed_loss, &error)) {
+        std::cerr << "resumed loss failed: " << error << '\n';
+        return 1;
+    }
+    if (resumed_loss != reloaded_loss || resumed_progress.global_step != progress.global_step) {
+        std::cerr << "training checkpoint continuity check failed\n";
+        return 1;
+    }
     std::string run_json;
     if (!logger.serialize(run_json, &error)) {
         std::cerr << "run serialization failed: " << error << '\n';
@@ -169,6 +239,9 @@ int main(int argc, char** argv) {
     }
     output << run_json;
     std::cout << "reloaded_loss," << reloaded_loss << '\n';
+    std::cout << "resumed_loss," << resumed_loss << '\n';
+    std::cout << "validation_loss," << final_validation_loss << '\n';
     std::cout << "run_log," << output_path << '\n';
+    std::cout << "training_checkpoint," << training_checkpoint_path << '\n';
     return 0;
 }

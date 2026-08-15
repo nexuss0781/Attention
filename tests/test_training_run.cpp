@@ -42,8 +42,8 @@ TEST(TrainingRunLoggerTest, SerializesDeterministicallyWithStepRecords) {
     TrainingRunLogger logger;
     std::string error;
     ASSERT_TRUE(logger.initialize(make_metadata(), &error)) << error;
-    ASSERT_TRUE(logger.append({0, 0, 0, 4, 1.2f, 1.1f, 0.05f, 0.4f}, &error)) << error;
-    ASSERT_TRUE(logger.append({1, 1, 4, 8, 1.1f, 1.0f, 0.05f, 0.3f}, &error)) << error;
+    ASSERT_TRUE(logger.append({0, 0, 0, 4, 1.2f, 1.1f, 0.05f, 0.4f, 1.3f}, &error)) << error;
+    ASSERT_TRUE(logger.append({1, 1, 4, 8, 1.1f, 1.0f, 0.05f, 0.3f, 1.2f}, &error)) << error;
 
     std::string first;
     std::string second;
@@ -64,11 +64,11 @@ TEST(TrainingRunLoggerTest, RejectsInvalidMetadataAndRecords) {
     EXPECT_FALSE(error.empty());
 
     ASSERT_TRUE(logger.initialize(make_metadata(), &error)) << error;
-    EXPECT_FALSE(logger.append({0, 0, 0, 4, std::numeric_limits<float>::quiet_NaN(), 1.1f, 0.05f, 0.4f}, &error));
+    EXPECT_FALSE(logger.append({0, 0, 0, 4, std::numeric_limits<float>::quiet_NaN(), 1.1f, 0.05f, 0.4f, 1.3f}, &error));
     EXPECT_FALSE(error.empty());
     error.clear();
-    ASSERT_TRUE(logger.append({1, 0, 0, 4, 1.2f, 1.1f, 0.05f, 0.4f}, &error)) << error;
-    EXPECT_FALSE(logger.append({1, 1, 4, 8, 1.1f, 1.0f, 0.05f, 0.3f}, &error));
+    ASSERT_TRUE(logger.append({1, 0, 0, 4, 1.2f, 1.1f, 0.05f, 0.4f, 1.3f}, &error)) << error;
+    EXPECT_FALSE(logger.append({1, 1, 4, 8, 1.1f, 1.0f, 0.05f, 0.3f, 1.2f}, &error));
     EXPECT_FALSE(error.empty());
 }
 

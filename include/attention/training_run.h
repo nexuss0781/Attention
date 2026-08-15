@@ -33,6 +33,7 @@ struct TrainingLogRecord {
     float loss_after = 0.0f;
     float learning_rate = 0.0f;
     float gradient_l2_norm = 0.0f;
+    float validation_loss = 0.0f;
 };
 
 class TrainingRunLogger {
