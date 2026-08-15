@@ -68,6 +68,18 @@ TEST(LinearCausalAttentionTest, IsDeterministicAndUsesDimensionBoundedState) {
     }
 }
 
+TEST(LinearCausalAttentionTest, HeadPartitionReducesStateFootprint) {
+    LinearCausalAttention single_head;
+    LinearCausalAttention two_heads;
+    std::string error;
+    ASSERT_TRUE(single_head.reset(8, 4, 1e-6f, &error)) << error;
+    ASSERT_TRUE(two_heads.reset(8, 4, 1e-6f, &error, 2)) << error;
+    EXPECT_EQ(single_head.head_count(), 1u);
+    EXPECT_EQ(two_heads.head_count(), 2u);
+    EXPECT_EQ(single_head.state_bytes(2), 320u);
+    EXPECT_EQ(two_heads.state_bytes(2), 192u);
+}
+
 TEST(LinearCausalAttentionTest, RejectsInvalidConfigurationShapesAndValues) {
     LinearCausalAttention attention;
     std::string error;

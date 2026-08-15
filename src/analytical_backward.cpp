@@ -263,13 +263,16 @@ std::vector<Var> qkv(Tape& tape, ParameterVars& parameters, const std::vector<Va
 std::vector<Var> attention(Tape& tape, const std::vector<std::vector<Var>>& query,
                            const std::vector<std::vector<Var>>& key,
                            const std::vector<std::vector<Var>>& value,
-                           std::size_t hidden) {
+                           std::size_t hidden,
+                           std::size_t head_count) {
     const std::size_t sequence = query.size();
+    const std::size_t head_size = hidden / head_count;
     std::vector<Var> output(sequence * hidden);
     std::vector<std::vector<Var>> prefix_normalizer(sequence, std::vector<Var>(hidden));
-    std::vector<std::vector<Var>> prefix_state(sequence, std::vector<Var>(hidden * hidden));
+    std::vector<std::vector<Var>> prefix_state(
+        sequence, std::vector<Var>(head_count * head_size * head_size));
     std::vector<Var> previous_normalizer(hidden);
-    std::vector<Var> previous_state(hidden * hidden);
+    std::vector<Var> previous_state(head_count * head_size * head_size);
     for (Var& item : previous_normalizer) item = tape.constant(0.0);
     for (Var& item : previous_state) item = tape.constant(0.0);
 
@@ -284,12 +287,17 @@ std::vector<Var> attention(Tape& tape, const std::vector<std::vector<Var>>& quer
             prefix_normalizer[position][channel] = tape.add(
                 previous_normalizer[channel], key_features[channel]);
         }
-        for (std::size_t key_channel = 0; key_channel < hidden; ++key_channel) {
-            for (std::size_t value_channel = 0; value_channel < hidden; ++value_channel) {
-                const std::size_t index = key_channel * hidden + value_channel;
-                prefix_state[position][index] = tape.add(
-                    previous_state[index],
-                    tape.mul(key_features[key_channel], value[position][value_channel]));
+        for (std::size_t head = 0; head < head_count; ++head) {
+            const std::size_t channel_offset = head * head_size;
+            const std::size_t state_offset = head * head_size * head_size;
+            for (std::size_t key_channel = 0; key_channel < head_size; ++key_channel) {
+                for (std::size_t value_channel = 0; value_channel < head_size; ++value_channel) {
+                    const std::size_t index = state_offset + key_channel * head_size + value_channel;
+                    prefix_state[position][index] = tape.add(
+                        previous_state[index], tape.mul(
+                            key_features[channel_offset + key_channel],
+                            value[position][channel_offset + value_channel]));
+                }
             }
         }
         previous_normalizer = prefix_normalizer[position];
@@ -303,21 +311,27 @@ std::vector<Var> attention(Tape& tape, const std::vector<std::vector<Var>>& quer
                 ? tape.constant(std::exp(clipped))
                 : tape.exp(query[position][channel]);
         }
-        Var denominator = tape.constant(0.0);
-        for (std::size_t channel = 0; channel < hidden; ++channel) {
-            denominator = tape.add(denominator, tape.mul(
-                query_features[channel], prefix_normalizer[position][channel]));
-        }
-        const Var safe_denominator = tape.value(denominator) > 1e-6
-            ? denominator : tape.constant(1e-6);
-        for (std::size_t value_channel = 0; value_channel < hidden; ++value_channel) {
-            Var numerator = tape.constant(0.0);
-            for (std::size_t key_channel = 0; key_channel < hidden; ++key_channel) {
-                numerator = tape.add(numerator, tape.mul(query_features[key_channel],
-                    prefix_state[position][key_channel * hidden + value_channel]));
+        for (std::size_t head = 0; head < head_count; ++head) {
+            const std::size_t channel_offset = head * head_size;
+            const std::size_t state_offset = head * head_size * head_size;
+            Var denominator = tape.constant(0.0);
+            for (std::size_t key_channel = 0; key_channel < head_size; ++key_channel) {
+                const std::size_t channel = channel_offset + key_channel;
+                denominator = tape.add(denominator, tape.mul(
+                    query_features[channel], prefix_normalizer[position][channel]));
             }
-            output[position * hidden + value_channel] = cast(
-                tape, tape.div(numerator, safe_denominator));
+            const Var safe_denominator = tape.value(denominator) > 1e-6
+                ? denominator : tape.constant(1e-6);
+            for (std::size_t value_channel = 0; value_channel < head_size; ++value_channel) {
+                Var numerator = tape.constant(0.0);
+                for (std::size_t key_channel = 0; key_channel < head_size; ++key_channel) {
+                    numerator = tape.add(numerator, tape.mul(
+                        query_features[channel_offset + key_channel],
+                        prefix_state[position][state_offset + key_channel * head_size + value_channel]));
+                }
+                output[position * hidden + channel_offset + value_channel] = cast(
+                    tape, tape.div(numerator, safe_denominator));
+            }
         }
     }
     return output;
@@ -389,7 +403,8 @@ bool analytical_backward(const TransformerModel& model,
                 batch_key[position] = keys[batch * sequence_length + position];
                 batch_value[position] = values[batch * sequence_length + position];
             }
-            const std::vector<Var> attended = attention(tape, batch_query, batch_key, batch_value, config.hidden_size);
+            const std::vector<Var> attended = attention(tape, batch_query, batch_key, batch_value, config.hidden_size,
+                      config.attention_head_count);
             for (std::size_t position = 0; position < sequence_length; ++position) {
                 after_attention[batch * sequence_length + position].resize(config.hidden_size);
                 for (std::size_t dimension = 0; dimension < config.hidden_size; ++dimension) {

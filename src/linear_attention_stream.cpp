@@ -32,9 +32,14 @@ bool LinearAttentionState::reset(std::size_t context_length,
                                  std::size_t batch_size,
                                  std::size_t hidden_size,
                                  float epsilon,
-                                 std::string* error) noexcept {
+                                 std::string* error,
+                                 std::size_t head_count) noexcept {
     if (context_length == 0 || batch_size == 0 || hidden_size == 0) {
         set_stream_error(error, "stream context, batch size, and hidden size must be positive");
+        return false;
+    }
+    if (head_count == 0 || hidden_size % head_count != 0) {
+        set_stream_error(error, "stream head count must be positive and divide hidden size");
         return false;
     }
     if (!std::isfinite(epsilon) || !(epsilon > 0.0f)) {
@@ -42,11 +47,12 @@ bool LinearAttentionState::reset(std::size_t context_length,
         return false;
     }
     const std::size_t maximum = std::numeric_limits<std::size_t>::max();
-    if (hidden_size > maximum / hidden_size) {
+    const std::size_t head_size = hidden_size / head_count;
+    if (head_count > maximum / head_size || head_count * head_size > maximum / head_size) {
         set_stream_error(error, "stream state size overflows size_t");
         return false;
     }
-    const std::size_t state_per_batch = hidden_size * hidden_size;
+    const std::size_t state_per_batch = head_count * head_size * head_size;
     if (batch_size > maximum / state_per_batch) {
         set_stream_error(error, "stream batch state size overflows size_t");
         return false;
@@ -64,6 +70,8 @@ bool LinearAttentionState::reset(std::size_t context_length,
     context_length_ = context_length;
     batch_size_ = batch_size;
     hidden_size_ = hidden_size;
+    head_count_ = head_count;
+    head_size_ = head_size;
     tokens_processed_ = 0;
     epsilon_ = epsilon;
     if (error != nullptr) error->clear();
@@ -103,7 +111,7 @@ bool LinearAttentionState::append(const Tensor& query,
     }
     if (!output.reset(shape, TensorDataType::F32, TensorDevice::CPU, error)) return false;
 
-    const std::size_t state_per_batch = hidden_size_ * hidden_size_;
+    const std::size_t state_per_batch = head_count_ * head_size_ * head_size_;
     for (std::size_t batch = 0; batch < batch_size_; ++batch) {
         double* state = state_.data() + batch * state_per_batch;
         double* normalizer = normalizer_.data() + batch * hidden_size_;
@@ -113,30 +121,40 @@ bool LinearAttentionState::append(const Tensor& query,
                 key_features_[channel] = stream_feature(key.data()[row_offset + channel]);
                 normalizer[channel] += static_cast<double>(key_features_[channel]);
             }
-            for (std::size_t key_channel = 0; key_channel < hidden_size_; ++key_channel) {
-                const double key_value = static_cast<double>(key_features_[key_channel]);
-                double* state_row = state + key_channel * hidden_size_;
-                for (std::size_t value_channel = 0; value_channel < hidden_size_; ++value_channel) {
-                    state_row[value_channel] += key_value *
-                        static_cast<double>(value.data()[row_offset + value_channel]);
+            for (std::size_t head = 0; head < head_count_; ++head) {
+                const std::size_t channel_offset = head * head_size_;
+                double* head_state = state + head * head_size_ * head_size_;
+                for (std::size_t key_channel = 0; key_channel < head_size_; ++key_channel) {
+                    const std::size_t global_key = channel_offset + key_channel;
+                    const double key_value = static_cast<double>(key_features_[global_key]);
+                    double* state_row = head_state + key_channel * head_size_;
+                    for (std::size_t value_channel = 0; value_channel < head_size_; ++value_channel) {
+                        state_row[value_channel] += key_value * static_cast<double>(
+                            value.data()[row_offset + channel_offset + value_channel]);
+                    }
                 }
             }
             for (std::size_t channel = 0; channel < hidden_size_; ++channel) {
                 query_features_[channel] = stream_feature(query.data()[row_offset + channel]);
             }
-            double denominator = 0.0;
-            for (std::size_t key_channel = 0; key_channel < hidden_size_; ++key_channel) {
-                denominator += static_cast<double>(query_features_[key_channel]) * normalizer[key_channel];
-            }
-            const double safe_denominator = std::max(denominator, static_cast<double>(epsilon_));
-            for (std::size_t value_channel = 0; value_channel < hidden_size_; ++value_channel) {
-                double numerator = 0.0;
-                for (std::size_t key_channel = 0; key_channel < hidden_size_; ++key_channel) {
-                    numerator += static_cast<double>(query_features_[key_channel]) *
-                        state[key_channel * hidden_size_ + value_channel];
+            for (std::size_t head = 0; head < head_count_; ++head) {
+                const std::size_t channel_offset = head * head_size_;
+                const double* head_state = state + head * head_size_ * head_size_;
+                double denominator = 0.0;
+                for (std::size_t key_channel = 0; key_channel < head_size_; ++key_channel) {
+                    const std::size_t global_key = channel_offset + key_channel;
+                    denominator += static_cast<double>(query_features_[global_key]) * normalizer[global_key];
                 }
-                output.data()[row_offset + value_channel] =
-                    static_cast<float>(numerator / safe_denominator);
+                const double safe_denominator = std::max(denominator, static_cast<double>(epsilon_));
+                for (std::size_t value_channel = 0; value_channel < head_size_; ++value_channel) {
+                    double numerator = 0.0;
+                    for (std::size_t key_channel = 0; key_channel < head_size_; ++key_channel) {
+                        numerator += static_cast<double>(query_features_[channel_offset + key_channel]) *
+                            head_state[key_channel * head_size_ + value_channel];
+                    }
+                    output.data()[row_offset + channel_offset + value_channel] =
+                        static_cast<float>(numerator / safe_denominator);
+                }
             }
         }
     }
@@ -153,6 +171,8 @@ void LinearAttentionState::clear() noexcept {
     context_length_ = 0;
     batch_size_ = 0;
     hidden_size_ = 0;
+    head_count_ = 1;
+    head_size_ = 0;
     tokens_processed_ = 0;
     epsilon_ = 1e-6f;
     state_.clear();
@@ -171,6 +191,10 @@ std::size_t LinearAttentionState::batch_size() const noexcept {
 
 std::size_t LinearAttentionState::hidden_size() const noexcept {
     return hidden_size_;
+}
+
+std::size_t LinearAttentionState::head_count() const noexcept {
+    return head_count_;
 }
 
 std::size_t LinearAttentionState::tokens_processed() const noexcept {

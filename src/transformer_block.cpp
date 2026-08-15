@@ -50,7 +50,8 @@ bool TransformerBlock::register_parameters(const TransformerConfig& config,
 
     if (!attention_normalization_.register_parameters(config, parameters, error) ||
         !qkv_projection_.register_parameters(config, layer_index_, parameters, error) ||
-        !attention_.reset(config.context_length, config.hidden_size, 1e-6f, error) ||
+        !attention_.reset(config.context_length, config.hidden_size, 1e-6f, error,
+                           config.attention_head_count) ||
         !feed_forward_normalization_.register_parameters(config, parameters, error) ||
         !feed_forward_.register_parameters(config, parameters, error)) {
         return false;

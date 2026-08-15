@@ -16,7 +16,8 @@ public:
                std::size_t batch_size,
                std::size_t hidden_size,
                float epsilon = 1e-6f,
-               std::string* error = nullptr) noexcept;
+               std::string* error = nullptr,
+               std::size_t head_count = 1) noexcept;
 
     bool append(const Tensor& query,
                 const Tensor& key,
@@ -28,6 +29,7 @@ public:
     [[nodiscard]] std::size_t context_length() const noexcept;
     [[nodiscard]] std::size_t batch_size() const noexcept;
     [[nodiscard]] std::size_t hidden_size() const noexcept;
+    [[nodiscard]] std::size_t head_count() const noexcept;
     [[nodiscard]] std::size_t tokens_processed() const noexcept;
     [[nodiscard]] std::size_t state_bytes() const noexcept;
 
@@ -35,6 +37,8 @@ private:
     std::size_t context_length_ = 0;
     std::size_t batch_size_ = 0;
     std::size_t hidden_size_ = 0;
+    std::size_t head_count_ = 1;
+    std::size_t head_size_ = 0;
     std::size_t tokens_processed_ = 0;
     float epsilon_ = 1e-6f;
     std::vector<double> state_;
@@ -48,7 +52,8 @@ public:
     bool reset(std::size_t context_length,
                std::size_t hidden_size,
                float epsilon = 1e-6f,
-               std::string* error = nullptr) noexcept;
+               std::string* error = nullptr,
+               std::size_t head_count = 1) noexcept;
 
     bool forward(const Tensor& query,
                  const Tensor& key,
@@ -58,6 +63,7 @@ public:
 
     [[nodiscard]] std::size_t context_length() const noexcept;
     [[nodiscard]] std::size_t hidden_size() const noexcept;
+    [[nodiscard]] std::size_t head_count() const noexcept;
     [[nodiscard]] std::size_t state_bytes(std::size_t batch_size) const noexcept;
     bool create_stream(std::size_t batch_size,
                        LinearAttentionState& state,
@@ -66,6 +72,8 @@ public:
 private:
     std::size_t context_length_ = 0;
     std::size_t hidden_size_ = 0;
+    std::size_t head_count_ = 1;
+    std::size_t head_size_ = 0;
     float epsilon_ = 1e-6f;
     CausalMask mask_;
 };

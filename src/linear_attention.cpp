@@ -32,9 +32,14 @@ float positive_feature(float value) {
 bool LinearCausalAttention::reset(std::size_t context_length,
                                   std::size_t hidden_size,
                                   float epsilon,
-                                  std::string* error) noexcept {
+                                  std::string* error,
+                                  std::size_t head_count) noexcept {
     if (context_length == 0 || hidden_size == 0) {
         set_error(error, "context length and hidden size must be positive");
+        return false;
+    }
+    if (head_count == 0 || hidden_size % head_count != 0) {
+        set_error(error, "head count must be positive and divide hidden size");
         return false;
     }
     if (!std::isfinite(epsilon) || !(epsilon > 0.0f)) {
@@ -44,6 +49,8 @@ bool LinearCausalAttention::reset(std::size_t context_length,
     if (!mask_.reset(context_length, error)) return false;
     context_length_ = context_length;
     hidden_size_ = hidden_size;
+    head_count_ = head_count;
+    head_size_ = hidden_size / head_count;
     epsilon_ = epsilon;
     if (error != nullptr) error->clear();
     return true;
@@ -77,13 +84,14 @@ bool LinearCausalAttention::forward(const Tensor& query,
         set_error(error, "linear attention inputs contain NaN or infinity");
         return false;
     }
-    if (hidden_size_ > std::numeric_limits<std::size_t>::max() / hidden_size_) {
+    if (head_count_ > std::numeric_limits<std::size_t>::max() / head_size_ ||
+        head_count_ * head_size_ > std::numeric_limits<std::size_t>::max() / head_size_) {
         set_error(error, "linear attention state size overflows size_t");
         return false;
     }
     if (!output.reset(shape, TensorDataType::F32, TensorDevice::CPU, error)) return false;
 
-    const std::size_t state_size = hidden_size_ * hidden_size_;
+    const std::size_t state_size = head_count_ * head_size_ * head_size_;
     std::vector<double> state(state_size, 0.0);
     std::vector<double> normalizer(hidden_size_, 0.0);
     std::vector<float> query_features(hidden_size_);
@@ -98,30 +106,40 @@ bool LinearCausalAttention::forward(const Tensor& query,
                 key_features[channel] = positive_feature(key.data()[row_offset + channel]);
                 normalizer[channel] += static_cast<double>(key_features[channel]);
             }
-            for (std::size_t key_channel = 0; key_channel < hidden_size_; ++key_channel) {
-                const double key_value = static_cast<double>(key_features[key_channel]);
-                double* state_row = state.data() + key_channel * hidden_size_;
-                for (std::size_t value_channel = 0; value_channel < hidden_size_; ++value_channel) {
-                    state_row[value_channel] += key_value *
-                        static_cast<double>(value.data()[row_offset + value_channel]);
+            for (std::size_t head = 0; head < head_count_; ++head) {
+                const std::size_t channel_offset = head * head_size_;
+                double* head_state = state.data() + head * head_size_ * head_size_;
+                for (std::size_t key_channel = 0; key_channel < head_size_; ++key_channel) {
+                    const std::size_t global_key = channel_offset + key_channel;
+                    const double key_value = static_cast<double>(key_features[global_key]);
+                    double* state_row = head_state + key_channel * head_size_;
+                    for (std::size_t value_channel = 0; value_channel < head_size_; ++value_channel) {
+                        state_row[value_channel] += key_value * static_cast<double>(
+                            value.data()[row_offset + channel_offset + value_channel]);
+                    }
                 }
             }
             for (std::size_t channel = 0; channel < hidden_size_; ++channel) {
                 query_features[channel] = positive_feature(query.data()[row_offset + channel]);
             }
-            double denominator = 0.0;
-            for (std::size_t key_channel = 0; key_channel < hidden_size_; ++key_channel) {
-                denominator += static_cast<double>(query_features[key_channel]) * normalizer[key_channel];
-            }
-            const double safe_denominator = std::max(denominator, static_cast<double>(epsilon_));
-            for (std::size_t value_channel = 0; value_channel < hidden_size_; ++value_channel) {
-                double numerator = 0.0;
-                for (std::size_t key_channel = 0; key_channel < hidden_size_; ++key_channel) {
-                    numerator += static_cast<double>(query_features[key_channel]) *
-                        state[key_channel * hidden_size_ + value_channel];
+            for (std::size_t head = 0; head < head_count_; ++head) {
+                const std::size_t channel_offset = head * head_size_;
+                const double* head_state = state.data() + head * head_size_ * head_size_;
+                double denominator = 0.0;
+                for (std::size_t key_channel = 0; key_channel < head_size_; ++key_channel) {
+                    const std::size_t global_key = channel_offset + key_channel;
+                    denominator += static_cast<double>(query_features[global_key]) * normalizer[global_key];
                 }
-                output.data()[row_offset + value_channel] =
-                    static_cast<float>(numerator / safe_denominator);
+                const double safe_denominator = std::max(denominator, static_cast<double>(epsilon_));
+                for (std::size_t value_channel = 0; value_channel < head_size_; ++value_channel) {
+                    double numerator = 0.0;
+                    for (std::size_t key_channel = 0; key_channel < head_size_; ++key_channel) {
+                        numerator += static_cast<double>(query_features[channel_offset + key_channel]) *
+                            head_state[key_channel * head_size_ + value_channel];
+                    }
+                    output.data()[row_offset + channel_offset + value_channel] =
+                        static_cast<float>(numerator / safe_denominator);
+                }
             }
         }
     }
@@ -141,6 +159,10 @@ std::size_t LinearCausalAttention::hidden_size() const noexcept {
     return hidden_size_;
 }
 
+std::size_t LinearCausalAttention::head_count() const noexcept {
+    return head_count_;
+}
+
 bool LinearCausalAttention::create_stream(std::size_t batch_size,
                                           LinearAttentionState& state,
                                           std::string* error) const noexcept {
@@ -148,16 +170,16 @@ bool LinearCausalAttention::create_stream(std::size_t batch_size,
         if (error != nullptr) *error = "linear attention is not initialized or batch size is zero";
         return false;
     }
-    return state.reset(context_length_, batch_size, hidden_size_, epsilon_, error);
+    return state.reset(context_length_, batch_size, hidden_size_, epsilon_, error, head_count_);
 }
 
 std::size_t LinearCausalAttention::state_bytes(std::size_t batch_size) const noexcept {
     const std::size_t maximum = std::numeric_limits<std::size_t>::max();
-    if (batch_size == 0 || hidden_size_ == 0 ||
-        hidden_size_ > maximum / hidden_size_) {
+    if (batch_size == 0 || hidden_size_ == 0 || head_count_ == 0 || head_size_ == 0 ||
+        head_count_ > maximum / head_size_ || head_count_ * head_size_ > maximum / head_size_) {
         return 0;
     }
-    const std::size_t state_elements = hidden_size_ * hidden_size_;
+    const std::size_t state_elements = head_count_ * head_size_ * head_size_;
     if (state_elements > maximum / sizeof(double) ||
         hidden_size_ > maximum / sizeof(double)) {
         return 0;
