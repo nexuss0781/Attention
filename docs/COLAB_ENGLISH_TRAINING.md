@@ -9,7 +9,7 @@ Run this cell after cloning or refreshing the repository:
 !pip install -q datasets huggingface_hub
 !chmod +x run.sh
 !./run.sh validate-curriculum
-!./run.sh prepare-fineweb /content/attention_fineweb_stage1 0 32 8 4096 1024
+!./run.sh prepare-fineweb /content/attention_fineweb_stage1 0 4 2 32 16
 !./run.sh bootstrap /content/attention_fineweb_stage1/initial.model.checkpoint
 !ATTENTION_SESSION_ROOT=/content/attention_fineweb_stage1/sessions \
   ATTENTION_CHECKPOINT_ROOT=/content/attention_fineweb_stage1/checkpoints \
@@ -17,7 +17,7 @@ Run this cell after cloning or refreshing the repository:
   /content/attention_fineweb_stage1/initial.model.checkpoint \
   data/english_competency_curriculum_v1.json \
   /content/attention_fineweb_stage1/chunk_manifest.json \
-  17 8 4096
+  17 8 32
 !ATTENTION_SESSION_ROOT=/content/attention_fineweb_stage1/sessions \
   ATTENTION_CHECKPOINT_ROOT=/content/attention_fineweb_stage1/checkpoints \
   ./run.sh train english_session_001 \
@@ -29,4 +29,4 @@ The command intentionally stops with `AWAITING_REVIEW`. It does not promote the 
 
 The literal string `SESSION_ID` must not be passed to `run.sh train`; it is only a placeholder in documentation. Use the exact initialized ID, such as `english_session_001`. A retry must use a new session ID so the previous session remains immutable.
 
-The first command downloads only the selected streaming range, not all FineWeb data. Increase document and token budgets only after the first competency session passes manual review and the Colab runtime has enough storage and time.
+The first command downloads only the selected streaming range, not all FineWeb data. The initial `32/16` token budgets are intentional because the current backward implementation is correctness-first finite differences. Increase document and token budgets only after the first competency session passes manual review and the analytical backward kernel or a correspondingly bounded training budget is available.
