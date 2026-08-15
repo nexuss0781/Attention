@@ -512,7 +512,9 @@ Every next step must update the corresponding checklist item only after its impl
 - [x] Implement stable document-range selection.
 - [x] Implement bounded train/validation token budgets.
 - [x] Enforce train/validation document disjointness.
-- [ ] Download and approve the first FineWeb English subset.
+- [x] Implement bounded Colab FineWeb streaming acquisition.
+- [x] Implement compatible parent-checkpoint bootstrap.
+- [ ] Download and approve the first FineWeb English subset for a full competency run.
 - [ ] Prepare the first FineWeb-Edu tranche.
 - [ ] Prepare English OASST1 and UltraChat instruction chunks.
 - [ ] Prepare HelpSteer2 preference chunks.
@@ -530,7 +532,7 @@ Every next step must update the corresponding checklist item only after its impl
 - [ ] Add manual review report templates for representative model outputs.
 - [ ] Classify repeated failures across independent chunks before alleging an architectural limitation.
 
-**Deliverables:** English curriculum manifest, competency contract, chunk preparer, session-artifact manager, run.sh orchestrator, and first sealed English session.
+**Deliverables:** English curriculum manifest, competency contract, chunk preparer, bounded Colab FineWeb acquisition, parent bootstrap executable, session-artifact manager, run.sh orchestrator, and first sealed English session.
 
 **Completion gate:** A bounded session trains from its parent checkpoint, produces finite and reproducible training/validation results, saves immutable artifacts, stops for manual review, and promotes only after an explicit user decision.
 
