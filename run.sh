@@ -192,6 +192,7 @@ module_config() {
     if [[ -n "${MODULE_DIR_OVERRIDE:-}" ]]; then MODULE_DIR="${MODULE_DIR_OVERRIDE}"; fi
     if [[ -n "${MODULE_STEPS_OVERRIDE:-}" ]]; then MODULE_STEPS="${MODULE_STEPS_OVERRIDE}"; fi
     if [[ -n "${MODULE_FINETUNE_STEPS_OVERRIDE:-}" ]]; then MODULE_FINETUNE_STEPS="${MODULE_FINETUNE_STEPS_OVERRIDE}"; fi
+    MODULE_VALIDATION_INTERVAL="${MODULE_VALIDATION_INTERVAL_OVERRIDE:-128}"
 }
 
 module_session_id() {
@@ -478,6 +479,7 @@ PY
     cd "${ROOT_DIR}"
     ATTENTION_CODE_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)" \
         ATTENTION_LEARNING_RATE="${ATTENTION_LEARNING_RATE:-0.005}" \
+        ATTENTION_VALIDATION_INTERVAL="${MODULE_VALIDATION_INTERVAL}" \
         "${PYTHON}" scripts/run_session.py \
             --session-dir "${session_dir}" \
             --executable "${BUILD_DIR}/attention_stage0_training" \
@@ -488,6 +490,7 @@ PY
         ATTENTION_DATASET_ID="fineweb_english" \
         ATTENTION_CODE_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)" \
         ATTENTION_LEARNING_RATE="${ATTENTION_FINETUNE_LEARNING_RATE:-${ATTENTION_LEARNING_RATE:-0.005}}" \
+        ATTENTION_VALIDATION_INTERVAL="${MODULE_VALIDATION_INTERVAL}" \
         ATTENTION_MAX_STEPS="${MODULE_FINETUNE_STEPS}" \
         "${BUILD_DIR}/attention_stage0_training" \
             "${MODULE_DIR}/finetune.tokens" \

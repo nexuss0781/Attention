@@ -266,30 +266,35 @@ std::vector<Var> attention(Tape& tape, const std::vector<std::vector<Var>>& quer
                            std::size_t hidden) {
     const std::size_t sequence = query.size();
     std::vector<Var> output(sequence * hidden);
+    std::vector<std::vector<Var>> prefix_normalizer(sequence, std::vector<Var>(hidden));
+    std::vector<std::vector<Var>> prefix_state(sequence, std::vector<Var>(hidden * hidden));
+    std::vector<Var> previous_normalizer(hidden);
+    std::vector<Var> previous_state(hidden * hidden);
+    for (Var& item : previous_normalizer) item = tape.constant(0.0);
+    for (Var& item : previous_state) item = tape.constant(0.0);
+
     for (std::size_t position = 0; position < sequence; ++position) {
-        std::vector<Var> normalizer(hidden);
-        std::vector<Var> state(hidden * hidden);
-        for (Var& item : normalizer) item = tape.constant(0.0);
-        for (Var& item : state) item = tape.constant(0.0);
-        for (std::size_t source = 0; source <= position; ++source) {
-            std::vector<Var> key_features(hidden);
-            for (std::size_t channel = 0; channel < hidden; ++channel) {
-                const double raw = tape.value(key[source][channel]);
-                const double clipped = std::clamp(raw, -20.0, 20.0);
-                if (raw <= -20.0 || raw >= 20.0) {
-                    key_features[channel] = tape.constant(std::exp(clipped));
-                } else {
-                    key_features[channel] = tape.exp(key[source][channel]);
-                }
-                normalizer[channel] = tape.add(normalizer[channel], key_features[channel]);
-            }
-            for (std::size_t key_channel = 0; key_channel < hidden; ++key_channel) {
-                for (std::size_t value_channel = 0; value_channel < hidden; ++value_channel) {
-                    const std::size_t index = key_channel * hidden + value_channel;
-                    state[index] = tape.add(state[index], tape.mul(key_features[key_channel], value[source][value_channel]));
-                }
+        std::vector<Var> key_features(hidden);
+        for (std::size_t channel = 0; channel < hidden; ++channel) {
+            const double raw = tape.value(key[position][channel]);
+            const double clipped = std::clamp(raw, -20.0, 20.0);
+            key_features[channel] = (raw <= -20.0 || raw >= 20.0)
+                ? tape.constant(std::exp(clipped))
+                : tape.exp(key[position][channel]);
+            prefix_normalizer[position][channel] = tape.add(
+                previous_normalizer[channel], key_features[channel]);
+        }
+        for (std::size_t key_channel = 0; key_channel < hidden; ++key_channel) {
+            for (std::size_t value_channel = 0; value_channel < hidden; ++value_channel) {
+                const std::size_t index = key_channel * hidden + value_channel;
+                prefix_state[position][index] = tape.add(
+                    previous_state[index],
+                    tape.mul(key_features[key_channel], value[position][value_channel]));
             }
         }
+        previous_normalizer = prefix_normalizer[position];
+        previous_state = prefix_state[position];
+
         std::vector<Var> query_features(hidden);
         for (std::size_t channel = 0; channel < hidden; ++channel) {
             const double raw = tape.value(query[position][channel]);
@@ -300,7 +305,8 @@ std::vector<Var> attention(Tape& tape, const std::vector<std::vector<Var>>& quer
         }
         Var denominator = tape.constant(0.0);
         for (std::size_t channel = 0; channel < hidden; ++channel) {
-            denominator = tape.add(denominator, tape.mul(query_features[channel], normalizer[channel]));
+            denominator = tape.add(denominator, tape.mul(
+                query_features[channel], prefix_normalizer[position][channel]));
         }
         const Var safe_denominator = tape.value(denominator) > 1e-6
             ? denominator : tape.constant(1e-6);
@@ -308,9 +314,10 @@ std::vector<Var> attention(Tape& tape, const std::vector<std::vector<Var>>& quer
             Var numerator = tape.constant(0.0);
             for (std::size_t key_channel = 0; key_channel < hidden; ++key_channel) {
                 numerator = tape.add(numerator, tape.mul(query_features[key_channel],
-                    state[key_channel * hidden + value_channel]));
+                    prefix_state[position][key_channel * hidden + value_channel]));
             }
-            output[position * hidden + value_channel] = cast(tape, tape.div(numerator, safe_denominator));
+            output[position * hidden + value_channel] = cast(
+                tape, tape.div(numerator, safe_denominator));
         }
     }
     return output;

@@ -148,6 +148,20 @@ int main(int argc, char** argv) {
         return 1;
     }
     attention::SgdOptimizer optimizer(metadata.learning_rate);
+    std::uint64_t validation_interval = 1;
+    const char* validation_interval_text = std::getenv("ATTENTION_VALIDATION_INTERVAL");
+    if (validation_interval_text != nullptr) {
+        try {
+            validation_interval = std::stoull(validation_interval_text);
+        } catch (...) {
+            std::cerr << "ATTENTION_VALIDATION_INTERVAL is invalid\n";
+            return 1;
+        }
+        if (validation_interval == 0) {
+            std::cerr << "ATTENTION_VALIDATION_INTERVAL must be positive\n";
+            return 1;
+        }
+    }
     std::uint64_t max_steps = 0;
     const char* max_steps_text = std::getenv("ATTENTION_MAX_STEPS");
     if (max_steps_text != nullptr) {
@@ -167,6 +181,7 @@ int main(int argc, char** argv) {
     float first_loss = 0.0f;
     float last_loss = 0.0f;
     float final_validation_loss = 0.0f;
+    std::uint64_t last_validation_step = std::numeric_limits<std::uint64_t>::max();
     attention::TrainingBatch last_batch;
     std::uint64_t step = 0;
     while (max_steps == 0 || step < max_steps) {
@@ -184,13 +199,18 @@ int main(int argc, char** argv) {
                 return 1;
             }
             const float gradient_norm = parameters.gradient_l2_norm();
-            attention::ValidationResult validation_result;
-            if (!attention::ValidationEvaluator::evaluate(model, validation_loader, parameters,
-                                                          validation_result, &error)) {
-                std::cerr << "validation failed: " << error << '\n';
-                return 1;
+            const bool validate_step = step == 0 || validation_interval == 1 ||
+                                       ((step + 1) % validation_interval == 0);
+            if (validate_step) {
+                attention::ValidationResult validation_result;
+                if (!attention::ValidationEvaluator::evaluate(model, validation_loader, parameters,
+                                                              validation_result, &error)) {
+                    std::cerr << "validation failed: " << error << '\n';
+                    return 1;
+                }
+                final_validation_loss = validation_result.mean_loss;
+                last_validation_step = step;
             }
-            final_validation_loss = validation_result.mean_loss;
             attention::TrainingLogRecord record;
             const std::uint64_t epoch = tokens_per_epoch == 0 ? 0 : step / loader.batch_count();
             record.step = step;
@@ -201,7 +221,7 @@ int main(int argc, char** argv) {
             record.loss_after = result.loss_after;
             record.learning_rate = metadata.learning_rate;
             record.gradient_l2_norm = gradient_norm;
-            record.validation_loss = validation_result.mean_loss;
+            record.validation_loss = final_validation_loss;
             if (!logger.append(record, &error)) {
                 std::cerr << "run logging failed: " << error << '\n';
                 return 1;
@@ -210,9 +230,18 @@ int main(int argc, char** argv) {
             last_loss = result.loss_after;
             last_batch = batch;
             std::cout << step << ',' << result.loss_before << ',' << result.loss_after << ','
-                      << gradient_norm << ',' << validation_result.mean_loss << '\n';
+                      << gradient_norm << ',' << final_validation_loss << '\n';
             ++step;
         }
+    }
+    if (last_validation_step != step - 1) {
+        attention::ValidationResult validation_result;
+        if (!attention::ValidationEvaluator::evaluate(model, validation_loader, parameters,
+                                                      validation_result, &error)) {
+            std::cerr << "final validation failed: " << error << '\n';
+            return 1;
+        }
+        final_validation_loss = validation_result.mean_loss;
     }
     if (!(last_loss < first_loss)) {
         std::cerr << "loss did not decrease" << '\n';
@@ -314,6 +343,7 @@ int main(int argc, char** argv) {
     std::cout << "reloaded_loss," << reloaded_loss << '\n';
     std::cout << "resumed_loss," << resumed_loss << '\n';
     std::cout << "validation_loss," << final_validation_loss << '\n';
+    std::cout << "validation_interval," << validation_interval << '\n';
     std::cout << "run_log," << output_path << '\n';
     std::cout << "training_checkpoint," << training_checkpoint_path << '\n';
     std::cout << "model_checkpoint," << model_checkpoint_path << '\n';
