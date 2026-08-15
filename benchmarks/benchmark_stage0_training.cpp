@@ -147,7 +147,21 @@ int main(int argc, char** argv) {
         std::cerr << "validation loader initialization failed: " << error << '\n';
         return 1;
     }
-    attention::SgdOptimizer optimizer(metadata.learning_rate);
+    float gradient_clip_norm = 0.0f;
+    const char* gradient_clip_text = std::getenv("ATTENTION_GRADIENT_CLIP_NORM");
+    if (gradient_clip_text != nullptr) {
+        try {
+            gradient_clip_norm = std::stof(gradient_clip_text);
+        } catch (...) {
+            std::cerr << "ATTENTION_GRADIENT_CLIP_NORM is invalid\n";
+            return 1;
+        }
+        if (!std::isfinite(gradient_clip_norm) || gradient_clip_norm < 0.0f) {
+            std::cerr << "ATTENTION_GRADIENT_CLIP_NORM must be finite and nonnegative\n";
+            return 1;
+        }
+    }
+    attention::SgdOptimizer optimizer(metadata.learning_rate, gradient_clip_norm);
     std::uint64_t validation_interval = 1;
     const char* validation_interval_text = std::getenv("ATTENTION_VALIDATION_INTERVAL");
     if (validation_interval_text != nullptr) {
@@ -344,6 +358,7 @@ int main(int argc, char** argv) {
     std::cout << "resumed_loss," << resumed_loss << '\n';
     std::cout << "validation_loss," << final_validation_loss << '\n';
     std::cout << "validation_interval," << validation_interval << '\n';
+    std::cout << "gradient_clip_norm," << gradient_clip_norm << '\n';
     std::cout << "run_log," << output_path << '\n';
     std::cout << "training_checkpoint," << training_checkpoint_path << '\n';
     std::cout << "model_checkpoint," << model_checkpoint_path << '\n';

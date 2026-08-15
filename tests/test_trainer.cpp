@@ -61,6 +61,28 @@ TEST(TrainerTest, ReloadsUpdatedWeightsWithExactLossEquivalence) {
     EXPECT_FLOAT_EQ(reloaded_loss, result.loss_after);
 }
 
+TEST(SgdOptimizerTest, ClipsGlobalGradientNorm) {
+    const TransformerConfig config = make_training_config();
+    ParameterStore parameters;
+    ASSERT_TRUE(TransformerModel().register_parameters(config, parameters));
+    ASSERT_TRUE(parameters.initialize(37));
+    for (Parameter& parameter : parameters.parameters()) {
+        for (std::size_t index = 0; index < parameter.gradient.size(); ++index) {
+            parameter.gradient.data()[index] = 1.0f;
+        }
+    }
+    const float norm_before = parameters.gradient_l2_norm();
+    ASSERT_GT(norm_before, 0.5f);
+    Parameter* embedding = parameters.find("embedding.weight");
+    ASSERT_NE(embedding, nullptr);
+    const float value_before = embedding->value.data()[0];
+    SgdOptimizer optimizer(1.0f, 0.5f);
+    std::string error;
+    ASSERT_TRUE(optimizer.step(parameters, &error)) << error;
+    const float expected = value_before - 0.5f / norm_before;
+    EXPECT_NEAR(embedding->value.data()[0], expected, 1e-6f);
+}
+
 TEST(TrainerTest, RejectsInvalidBatchShape) {
     const TransformerConfig config = make_training_config();
     TransformerModel model;

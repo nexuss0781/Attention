@@ -480,6 +480,7 @@ PY
     ATTENTION_CODE_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)" \
         ATTENTION_LEARNING_RATE="${ATTENTION_LEARNING_RATE:-0.005}" \
         ATTENTION_VALIDATION_INTERVAL="${MODULE_VALIDATION_INTERVAL}" \
+        ATTENTION_GRADIENT_CLIP_NORM="${ATTENTION_GRADIENT_CLIP_NORM:-1.0}" \
         "${PYTHON}" scripts/run_session.py \
             --session-dir "${session_dir}" \
             --executable "${BUILD_DIR}/attention_stage0_training" \
@@ -491,6 +492,7 @@ PY
         ATTENTION_CODE_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)" \
         ATTENTION_LEARNING_RATE="${ATTENTION_FINETUNE_LEARNING_RATE:-${ATTENTION_LEARNING_RATE:-0.005}}" \
         ATTENTION_VALIDATION_INTERVAL="${MODULE_VALIDATION_INTERVAL}" \
+        ATTENTION_GRADIENT_CLIP_NORM="${ATTENTION_GRADIENT_CLIP_NORM:-1.0}" \
         ATTENTION_MAX_STEPS="${MODULE_FINETUNE_STEPS}" \
         "${BUILD_DIR}/attention_stage0_training" \
             "${MODULE_DIR}/finetune.tokens" \
