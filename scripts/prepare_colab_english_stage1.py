@@ -21,6 +21,7 @@ def main() -> int:
     parser.add_argument("--validation-documents", type=int, default=8)
     parser.add_argument("--max-train-tokens", type=int, default=4096)
     parser.add_argument("--max-validation-tokens", type=int, default=1024)
+    parser.add_argument("--module", choices=("module_1_1",), default="module_1_1")
     args = parser.parse_args()
     if min(args.start_document, args.train_documents, args.validation_documents,
            args.max_train_tokens, args.max_validation_tokens) < 0:
@@ -104,6 +105,28 @@ def main() -> int:
     completed = subprocess.run(command, check=False)
     if completed.returncode != 0:
         return completed.returncode
+
+    module_prepare = Path(__file__).with_name("prepare_module_1_1.py")
+    module_command = [
+        sys.executable,
+        str(module_prepare),
+        "--input-jsonl", str(selected_path),
+        "--output-train-tokens", str(output_dir / "module_1_1_train.tokens"),
+        "--output-validation-tokens", str(output_dir / "module_1_1_validation.tokens"),
+        "--output-cases", str(output_dir / "module_1_1_cases.tsv"),
+        "--output-manifest", str(output_dir / "module_1_1_lesson_manifest.json"),
+        "--dataset-id", "fineweb_english",
+        "--dataset-revision", resolved_revision,
+        "--train-start", "0",
+        "--train-count", str(args.train_documents),
+        "--validation-start", str(args.train_documents),
+        "--validation-count", str(args.validation_documents),
+        "--max-train-tokens", str(args.max_train_tokens),
+        "--max-validation-tokens", str(args.max_validation_tokens),
+    ]
+    module_completed = subprocess.run(module_command, check=False)
+    if module_completed.returncode != 0:
+        return module_completed.returncode
     metadata = {
         "format": "attention.colab_dataset_preparation.v1",
         "dataset": args.dataset,
@@ -116,7 +139,11 @@ def main() -> int:
         "max_train_tokens": args.max_train_tokens,
         "max_validation_tokens": args.max_validation_tokens,
         "selected_documents": str(selected_path),
-        "chunk_manifest": str(chunk_manifest),
+                    "chunk_manifest": str(chunk_manifest),
+            "module": args.module,
+            "module_1_1_lesson_manifest": str(output_dir / "module_1_1_lesson_manifest.json"),
+            "module_1_1_cases": str(output_dir / "module_1_1_cases.tsv"),
+
     }
     (output_dir / "download_manifest.json").write_text(
         json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
