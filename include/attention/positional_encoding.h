@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace attention {
 
@@ -28,6 +29,7 @@ public:
 private:
     std::size_t context_length_ = 0;
     std::size_t hidden_size_ = 0;
+    std::vector<float> table_;
 };
 
 } // namespace attention

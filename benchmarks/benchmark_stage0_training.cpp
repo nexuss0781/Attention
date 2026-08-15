@@ -63,9 +63,23 @@ int main(int argc, char** argv) {
         }
     }
 
+    std::size_t configured_batch_size = 1;
+    const char* batch_size_text = std::getenv("ATTENTION_BATCH_SIZE");
+    if (batch_size_text != nullptr) {
+        try {
+            configured_batch_size = std::stoull(batch_size_text);
+        } catch (...) {
+            std::cerr << "ATTENTION_BATCH_SIZE is invalid\n";
+            return 1;
+        }
+        if (configured_batch_size == 0) {
+            std::cerr << "ATTENTION_BATCH_SIZE must be positive\n";
+            return 1;
+        }
+    }
     attention::TrainingBatchLoader loader;
     const std::size_t training_sequence_length = file_backed ? 32 : 4;
-    if (!loader.initialize(std::move(token_stream), 1, training_sequence_length, true, &error)) {
+    if (!loader.initialize(std::move(token_stream), configured_batch_size, training_sequence_length, true, &error)) {
         std::cerr << "batch loader initialization failed: " << error << '\n';
         return 1;
     }
@@ -143,7 +157,8 @@ int main(int argc, char** argv) {
         validation_tokens = {1, 2, 0, 1, 2, 0, 1, 2};
     }
     attention::TrainingBatchLoader validation_loader;
-    if (!validation_loader.initialize(std::move(validation_tokens), 1, training_sequence_length, true, &error)) {
+    if (!validation_loader.initialize(std::move(validation_tokens), configured_batch_size,
+                                      training_sequence_length, true, &error)) {
         std::cerr << "validation loader initialization failed: " << error << '\n';
         return 1;
     }
@@ -359,6 +374,7 @@ int main(int argc, char** argv) {
     std::cout << "validation_loss," << final_validation_loss << '\n';
     std::cout << "validation_interval," << validation_interval << '\n';
     std::cout << "gradient_clip_norm," << gradient_clip_norm << '\n';
+    std::cout << "batch_size," << configured_batch_size << '\n';
     std::cout << "run_log," << output_path << '\n';
     std::cout << "training_checkpoint," << training_checkpoint_path << '\n';
     std::cout << "model_checkpoint," << model_checkpoint_path << '\n';

@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <limits>
+#include <new>
 
 namespace attention {
 namespace {
@@ -17,6 +18,28 @@ bool SinusoidalPositionEncoding::reset(std::size_t context_length,
                                        std::string* error) noexcept {
     if (context_length == 0 || hidden_size == 0) {
         set_error(error, "context length and hidden size must be positive");
+        return false;
+    }
+    try {
+        table_.assign(context_length * hidden_size, 0.0f);
+        constexpr double log_base = 9.210340371976184;
+        for (std::size_t position = 0; position < context_length; ++position) {
+            const double position_value = static_cast<double>(position);
+            for (std::size_t dimension = 0; dimension < hidden_size; ++dimension) {
+                const std::size_t pair_index = dimension / 2;
+                const double exponent = (2.0 * static_cast<double>(pair_index)) /
+                    static_cast<double>(hidden_size);
+                const double angle = position_value * std::exp(-log_base * exponent);
+                table_[position * hidden_size + dimension] = dimension % 2 == 0
+                    ? static_cast<float>(std::sin(angle))
+                    : static_cast<float>(std::cos(angle));
+            }
+        }
+    } catch (const std::bad_alloc&) {
+        context_length_ = 0;
+        hidden_size_ = 0;
+        table_.clear();
+        set_error(error, "positional encoding table allocation failed");
         return false;
     }
     context_length_ = context_length;
@@ -64,20 +87,13 @@ bool SinusoidalPositionEncoding::apply_at(const Tensor& input,
     }
     if (!output.reset(shape, TensorDataType::F32, TensorDevice::CPU, error)) return false;
 
-    constexpr double log_base = 9.210340371976184;
     for (std::size_t batch = 0; batch < batch_size; ++batch) {
         for (std::size_t position = 0; position < sequence_length; ++position) {
             const std::size_t row_offset = (batch * sequence_length + position) * hidden_size_;
-            const double position_value = static_cast<double>(position_offset + position);
+            const std::size_t table_offset = (position_offset + position) * hidden_size_;
             for (std::size_t dimension = 0; dimension < hidden_size_; ++dimension) {
-                const std::size_t pair_index = dimension / 2;
-                const double exponent = (2.0 * static_cast<double>(pair_index)) /
-                    static_cast<double>(hidden_size_);
-                const double angle = position_value * std::exp(-log_base * exponent);
-                const float positional_value = (dimension % 2 == 0)
-                    ? static_cast<float>(std::sin(angle))
-                    : static_cast<float>(std::cos(angle));
-                output.data()[row_offset + dimension] = input.data()[row_offset + dimension] + positional_value;
+                output.data()[row_offset + dimension] = input.data()[row_offset + dimension] +
+                    table_[table_offset + dimension];
             }
         }
     }
