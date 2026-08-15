@@ -58,6 +58,50 @@ TEST(TrainingCheckpointTest, PreservesModelAndProgressExactly) {
     EXPECT_FLOAT_EQ(reloaded_loss, original_loss);
 }
 
+TEST(TrainingCheckpointTest, PreservesAdamWOptimizerState) {
+    const TransformerConfig config = resume_config();
+    TransformerModel model;
+    ParameterStore parameters;
+    ASSERT_TRUE(model.register_parameters(config, parameters));
+    ASSERT_TRUE(parameters.initialize(67));
+    TrainingProgress progress{"adamw_run", "data", "revision", 7, 224, 7, 0.001f};
+    OptimizerState state;
+    state.kind = OptimizerKind::AdamW;
+    state.learning_rate = 0.001f;
+    state.beta1 = 0.9f;
+    state.beta2 = 0.999f;
+    state.epsilon = 1e-8f;
+    state.weight_decay = 0.01f;
+    state.gradient_clip_norm = 1.0f;
+    state.step_count = 7;
+    for (const Parameter& parameter : parameters.parameters()) {
+        state.first_moments.emplace_back(parameter.value.size(), 0.125f);
+        state.second_moments.emplace_back(parameter.value.size(), 0.25f);
+    }
+    std::string checkpoint;
+    std::string error;
+    ASSERT_TRUE(TrainingCheckpoint::serialize(config, parameters, progress, checkpoint, &error,
+                                              TokenizerMetadata::byte_level_v1(), &state)) << error;
+    EXPECT_NE(checkpoint.find("attention.training_checkpoint.v2"), std::string::npos);
+
+    TransformerModel reloaded_model;
+    ParameterStore reloaded_parameters;
+    TrainingProgress reloaded_progress;
+    OptimizerState reloaded_state;
+    ASSERT_TRUE(TrainingCheckpoint::load(checkpoint, reloaded_model, reloaded_parameters,
+                                         reloaded_progress, &error,
+                                         TokenizerMetadata::byte_level_v1(), &reloaded_state)) << error;
+    EXPECT_EQ(reloaded_state.kind, OptimizerKind::AdamW);
+    EXPECT_EQ(reloaded_state.step_count, state.step_count);
+    EXPECT_FLOAT_EQ(reloaded_state.learning_rate, state.learning_rate);
+    ASSERT_EQ(reloaded_state.first_moments.size(), state.first_moments.size());
+    ASSERT_EQ(reloaded_state.second_moments.size(), state.second_moments.size());
+    for (std::size_t index = 0; index < state.first_moments.size(); ++index) {
+        EXPECT_EQ(reloaded_state.first_moments[index], state.first_moments[index]);
+        EXPECT_EQ(reloaded_state.second_moments[index], state.second_moments[index]);
+    }
+}
+
 TEST(TrainingCheckpointTest, RejectsInvalidProgressAndTrailingData) {
     const TransformerConfig config = resume_config();
     TransformerModel model;

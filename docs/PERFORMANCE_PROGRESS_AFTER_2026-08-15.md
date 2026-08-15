@@ -60,3 +60,9 @@ The current architecture comparison is documented separately in `docs/ARCHITECTU
 At revision `28a7aa7`, the Release build passes **127/127 tests**. Shell syntax checks and Python compilation checks pass. The refined static audit finds no dense attention-score matrix, no `source <= position` prefix rebuild, and no forbidden token-pair allocation pattern in the core source, headers, or registered benchmarks.
 
 The final matched sweep remains approximately flat for four-head Attention at 0.827–0.841M tokens/sec from context 32 through 2,048. The comparable GRU reaches 2.09–2.40M tokens/sec, the diagonal SSM reaches 4.23–4.53M tokens/sec, and the causal softmax Transformer falls from 5.53M tokens/sec at context 32 to 18.8K tokens/sec at context 2,048. The honest verdict is therefore: Attention has the desired long-context scaling and beats dense softmax attention at long context, but it does not yet dominate optimized GRU or diagonal SSM kernels in raw throughput.
+
+## Persistent AdamW milestone
+
+Commit `9028a33` added opt-in AdamW with bias correction, decoupled weight decay, and clipping. The subsequent checkpoint extension adds `attention.training_checkpoint.v2`, which stores optimizer identity, hyperparameters, step count, and first/second moment tensors. A fresh optimizer successfully imports the reloaded AdamW state in the stage-0 probe, and the checkpoint regression suite now passes **129/129 tests**.
+
+`run.sh` continues to default to SGD until the higher-level session runner loads the v2 training checkpoint for interrupted-session continuation. AdamW can be selected explicitly with `ATTENTION_OPTIMIZER=adamw`; the optimizer state is now serializable and importable, but automatic Colab session recovery must still be wired to consume it before making AdamW the unconditional default.

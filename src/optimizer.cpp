@@ -60,6 +60,31 @@ bool SgdOptimizer::step(ParameterStore& parameters, std::string* error) const {
     return true;
 }
 
+bool SgdOptimizer::export_state(OptimizerState& state, std::string* error) const {
+    if (!std::isfinite(learning_rate_) || learning_rate_ <= 0.0f || !valid_clip(gradient_clip_norm_)) {
+        if (error != nullptr) *error = "SGD optimizer state is invalid";
+        return false;
+    }
+    state = OptimizerState{};
+    state.kind = OptimizerKind::SGD;
+    state.learning_rate = learning_rate_;
+    state.gradient_clip_norm = gradient_clip_norm_;
+    if (error != nullptr) error->clear();
+    return true;
+}
+
+bool SgdOptimizer::import_state(const OptimizerState& state, std::string* error) {
+    if (state.kind != OptimizerKind::SGD || !std::isfinite(state.learning_rate) ||
+        state.learning_rate <= 0.0f || !valid_clip(state.gradient_clip_norm)) {
+        if (error != nullptr) *error = "SGD optimizer state is invalid";
+        return false;
+    }
+    learning_rate_ = state.learning_rate;
+    gradient_clip_norm_ = state.gradient_clip_norm;
+    if (error != nullptr) error->clear();
+    return true;
+}
+
 bool AdamWOptimizer::initialize_moments(const ParameterStore& parameters, std::string* error) const {
     if (first_moments_.size() == parameters.parameters().size() &&
         second_moments_.size() == parameters.parameters().size()) {
@@ -84,6 +109,66 @@ bool AdamWOptimizer::initialize_moments(const ParameterStore& parameters, std::s
         if (error != nullptr) *error = "AdamW moment allocation failed";
         return false;
     }
+    return true;
+}
+
+bool AdamWOptimizer::export_state(OptimizerState& state, std::string* error) const {
+    if (!std::isfinite(learning_rate_) || learning_rate_ <= 0.0f ||
+        !std::isfinite(beta1_) || beta1_ < 0.0f || beta1_ >= 1.0f ||
+        !std::isfinite(beta2_) || beta2_ < 0.0f || beta2_ >= 1.0f ||
+        !std::isfinite(epsilon_) || epsilon_ <= 0.0f ||
+        !std::isfinite(weight_decay_) || weight_decay_ < 0.0f ||
+        !valid_clip(gradient_clip_norm_)) {
+        if (error != nullptr) *error = "AdamW optimizer state is invalid";
+        return false;
+    }
+    state = OptimizerState{};
+    state.kind = OptimizerKind::AdamW;
+    state.learning_rate = learning_rate_;
+    state.beta1 = beta1_;
+    state.beta2 = beta2_;
+    state.epsilon = epsilon_;
+    state.weight_decay = weight_decay_;
+    state.gradient_clip_norm = gradient_clip_norm_;
+    state.step_count = step_count_;
+    state.first_moments = first_moments_;
+    state.second_moments = second_moments_;
+    if (error != nullptr) error->clear();
+    return true;
+}
+
+bool AdamWOptimizer::import_state(const OptimizerState& state, std::string* error) {
+    if (state.kind != OptimizerKind::AdamW || !std::isfinite(state.learning_rate) ||
+        state.learning_rate <= 0.0f || !std::isfinite(state.beta1) || state.beta1 < 0.0f || state.beta1 >= 1.0f ||
+        !std::isfinite(state.beta2) || state.beta2 < 0.0f || state.beta2 >= 1.0f ||
+        !std::isfinite(state.epsilon) || state.epsilon <= 0.0f ||
+        !std::isfinite(state.weight_decay) || state.weight_decay < 0.0f ||
+        !valid_clip(state.gradient_clip_norm) || state.first_moments.size() != state.second_moments.size()) {
+        if (error != nullptr) *error = "AdamW optimizer state is invalid";
+        return false;
+    }
+    for (std::size_t index = 0; index < state.first_moments.size(); ++index) {
+        if (state.first_moments[index].size() != state.second_moments[index].size()) {
+            if (error != nullptr) *error = "AdamW moment shapes do not match";
+            return false;
+        }
+    }
+    learning_rate_ = state.learning_rate;
+    beta1_ = state.beta1;
+    beta2_ = state.beta2;
+    epsilon_ = state.epsilon;
+    weight_decay_ = state.weight_decay;
+    gradient_clip_norm_ = state.gradient_clip_norm;
+    step_count_ = state.step_count;
+    beta1_power_ = std::pow(beta1_, static_cast<float>(step_count_));
+    beta2_power_ = std::pow(beta2_, static_cast<float>(step_count_));
+    if (!std::isfinite(beta1_power_) || !std::isfinite(beta2_power_)) {
+        if (error != nullptr) *error = "AdamW optimizer powers are nonfinite";
+        return false;
+    }
+    first_moments_ = state.first_moments;
+    second_moments_ = state.second_moments;
+    if (error != nullptr) error->clear();
     return true;
 }
 

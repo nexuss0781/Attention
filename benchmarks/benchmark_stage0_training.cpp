@@ -325,9 +325,16 @@ int main(int argc, char** argv) {
     progress.tokens_processed = step * loader.batch_size() * loader.sequence_length();
     progress.next_batch_index = loader.batches_emitted();
     progress.learning_rate = metadata.learning_rate;
+    attention::OptimizerState optimizer_state;
+    if (!optimizer->export_state(optimizer_state, &error)) {
+        std::cerr << "optimizer state export failed: " << error << '\n';
+        return 1;
+    }
     std::string training_checkpoint;
     if (!attention::TrainingCheckpoint::serialize(config, parameters, progress,
-                                                 training_checkpoint, &error)) {
+                                                 training_checkpoint, &error,
+                                                 attention::TokenizerMetadata::byte_level_v1(),
+                                                 &optimizer_state)) {
         std::cerr << "training checkpoint serialization failed: " << error << '\n';
         return 1;
     }
@@ -363,8 +370,11 @@ int main(int argc, char** argv) {
     attention::TransformerModel resumed_model;
     attention::ParameterStore resumed_parameters;
     attention::TrainingProgress resumed_progress;
+    attention::OptimizerState resumed_optimizer_state;
     if (!attention::TrainingCheckpoint::load(persisted_training_checkpoint, resumed_model,
-                                             resumed_parameters, resumed_progress, &error)) {
+                                             resumed_parameters, resumed_progress, &error,
+                                             attention::TokenizerMetadata::byte_level_v1(),
+                                             &resumed_optimizer_state)) {
         std::cerr << "training checkpoint reload failed: " << error << '\n';
         return 1;
     }
@@ -375,7 +385,19 @@ int main(int argc, char** argv) {
         std::cerr << "resumed loss failed: " << error << '\n';
         return 1;
     }
-    if (resumed_loss != reloaded_loss || resumed_progress.global_step != progress.global_step) {
+    std::unique_ptr<attention::Optimizer> resumed_optimizer;
+    if (resumed_optimizer_state.kind == attention::OptimizerKind::AdamW) {
+        resumed_optimizer = std::make_unique<attention::AdamWOptimizer>(0.001f);
+    } else {
+        resumed_optimizer = std::make_unique<attention::SgdOptimizer>(0.001f);
+    }
+    if (!resumed_optimizer->import_state(resumed_optimizer_state, &error)) {
+        std::cerr << "optimizer checkpoint import failed: " << error << '\n';
+        return 1;
+    }
+    if (resumed_loss != reloaded_loss || resumed_progress.global_step != progress.global_step ||
+        resumed_optimizer_state.kind != optimizer_state.kind ||
+        resumed_optimizer_state.step_count != optimizer_state.step_count) {
         std::cerr << "training checkpoint continuity check failed\n";
         return 1;
     }
@@ -398,6 +420,7 @@ int main(int argc, char** argv) {
     std::cout << "gradient_clip_norm," << gradient_clip_norm << '\n';
     std::cout << "batch_size," << configured_batch_size << '\n';
     std::cout << "optimizer," << optimizer_name << '\n';
+    std::cout << "optimizer_checkpoint_step," << resumed_optimizer_state.step_count << '\n';
     std::cout << "run_log," << output_path << '\n';
     std::cout << "training_checkpoint," << training_checkpoint_path << '\n';
     std::cout << "model_checkpoint," << model_checkpoint_path << '\n';

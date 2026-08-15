@@ -10,7 +10,8 @@
 namespace attention {
 namespace {
 
-constexpr std::string_view kMagic = "attention.training_checkpoint.v1";
+constexpr std::string_view kMagicV1 = "attention.training_checkpoint.v1";
+constexpr std::string_view kMagicV2 = "attention.training_checkpoint.v2";
 
 void set_error(std::string* error, const char* message) {
     if (error != nullptr) *error = message;
@@ -119,6 +120,104 @@ bool read_float_field(std::string_view input, std::size_t& cursor, std::string_v
     return true;
 }
 
+void append_optimizer_state(std::string& output, const OptimizerState& state) {
+    output.append("optimizer_kind\n");
+    append_size(output, static_cast<std::uint64_t>(state.kind));
+    output.push_back('\n');
+    output.append("optimizer_learning_rate\n");
+    append_float(output, state.learning_rate);
+    output.push_back('\n');
+    output.append("optimizer_beta1\n");
+    append_float(output, state.beta1);
+    output.push_back('\n');
+    output.append("optimizer_beta2\n");
+    append_float(output, state.beta2);
+    output.push_back('\n');
+    output.append("optimizer_epsilon\n");
+    append_float(output, state.epsilon);
+    output.push_back('\n');
+    output.append("optimizer_weight_decay\n");
+    append_float(output, state.weight_decay);
+    output.push_back('\n');
+    output.append("optimizer_gradient_clip_norm\n");
+    append_float(output, state.gradient_clip_norm);
+    output.push_back('\n');
+    output.append("optimizer_step_count\n");
+    append_size(output, state.step_count);
+    output.push_back('\n');
+    output.append("optimizer_first_count\n");
+    append_size(output, state.first_moments.size());
+    output.push_back('\n');
+    for (const auto& moment : state.first_moments) {
+        output.append("optimizer_moment_size\n");
+        append_size(output, moment.size());
+        output.push_back('\n');
+        for (float value : moment) {
+            append_float(output, value);
+            output.push_back('\n');
+        }
+    }
+    output.append("optimizer_second_count\n");
+    append_size(output, state.second_moments.size());
+    output.push_back('\n');
+    for (const auto& moment : state.second_moments) {
+        output.append("optimizer_moment_size\n");
+        append_size(output, moment.size());
+        output.push_back('\n');
+        for (float value : moment) {
+            append_float(output, value);
+            output.push_back('\n');
+        }
+    }
+}
+
+bool read_optimizer_state(std::string_view input, std::size_t& cursor,
+                          OptimizerState& state, std::string* error) {
+    std::uint64_t kind = 0;
+    if (!read_uint_field(input, cursor, "optimizer_kind", kind, error) || kind > 1 ||
+        !read_float_field(input, cursor, "optimizer_learning_rate", state.learning_rate, error) ||
+        !read_float_field(input, cursor, "optimizer_beta1", state.beta1, error) ||
+        !read_float_field(input, cursor, "optimizer_beta2", state.beta2, error) ||
+        !read_float_field(input, cursor, "optimizer_epsilon", state.epsilon, error) ||
+        !read_float_field(input, cursor, "optimizer_weight_decay", state.weight_decay, error) ||
+        !read_float_field(input, cursor, "optimizer_gradient_clip_norm", state.gradient_clip_norm, error) ||
+        !read_uint_field(input, cursor, "optimizer_step_count", state.step_count, error)) return false;
+    state.kind = static_cast<OptimizerKind>(kind);
+    std::uint64_t first_count = 0;
+    if (!read_uint_field(input, cursor, "optimizer_first_count", first_count, error)) return false;
+    state.first_moments.clear();
+    state.first_moments.resize(static_cast<std::size_t>(first_count));
+    for (auto& moment : state.first_moments) {
+        std::uint64_t size = 0;
+        if (!read_uint_field(input, cursor, "optimizer_moment_size", size, error)) return false;
+        moment.resize(static_cast<std::size_t>(size));
+        for (float& value : moment) {
+            std::string_view line;
+            if (!read_line(input, cursor, line) || !parse_float(line, value)) {
+                set_error(error, "optimizer first moment value is invalid");
+                return false;
+            }
+        }
+    }
+    std::uint64_t second_count = 0;
+    if (!read_uint_field(input, cursor, "optimizer_second_count", second_count, error)) return false;
+    state.second_moments.clear();
+    state.second_moments.resize(static_cast<std::size_t>(second_count));
+    for (auto& moment : state.second_moments) {
+        std::uint64_t size = 0;
+        if (!read_uint_field(input, cursor, "optimizer_moment_size", size, error)) return false;
+        moment.resize(static_cast<std::size_t>(size));
+        for (float& value : moment) {
+            std::string_view line;
+            if (!read_line(input, cursor, line) || !parse_float(line, value)) {
+                set_error(error, "optimizer second moment value is invalid");
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 bool TrainingCheckpoint::serialize(const TransformerConfig& config,
@@ -126,7 +225,8 @@ bool TrainingCheckpoint::serialize(const TransformerConfig& config,
                                    const TrainingProgress& progress,
                                    std::string& output,
                                    std::string* error,
-                                   const TokenizerMetadata& tokenizer) {
+                                   const TokenizerMetadata& tokenizer,
+                                   const OptimizerState* optimizer_state) {
     if (!valid_line_text(progress.run_id) || !valid_line_text(progress.dataset_id) ||
         !valid_line_text(progress.dataset_revision) || !std::isfinite(progress.learning_rate) ||
         progress.learning_rate <= 0.0f) {
@@ -136,7 +236,7 @@ bool TrainingCheckpoint::serialize(const TransformerConfig& config,
     std::string model_checkpoint;
     if (!TransformerCheckpoint::serialize(config, parameters, model_checkpoint, error, tokenizer)) return false;
     output.clear();
-    output.append(kMagic);
+    output.append(optimizer_state != nullptr ? kMagicV2 : kMagicV1);
     output.push_back('\n');
     if (!append_text_field(output, "run_id", progress.run_id) ||
         !append_text_field(output, "dataset_id", progress.dataset_id) ||
@@ -156,6 +256,7 @@ bool TrainingCheckpoint::serialize(const TransformerConfig& config,
     output.append("learning_rate\n");
     append_float(output, progress.learning_rate);
     output.push_back('\n');
+    if (optimizer_state != nullptr) append_optimizer_state(output, *optimizer_state);
     output.append("model_checkpoint_bytes\n");
     append_size(output, model_checkpoint.size());
     output.push_back('\n');
@@ -170,14 +271,20 @@ bool TrainingCheckpoint::load(std::string_view input,
                               ParameterStore& parameters,
                               TrainingProgress& progress,
                               std::string* error,
-                              const TokenizerMetadata& expected_tokenizer) {
+                              const TokenizerMetadata& expected_tokenizer,
+                              OptimizerState* optimizer_state) {
     if (model.initialized() || parameters.size() != 0) {
         set_error(error, "training checkpoint load requires a fresh model and parameter store");
         return false;
     }
     std::size_t cursor = 0;
     std::string_view line;
-    if (!read_line(input, cursor, line) || line != kMagic) {
+    if (!read_line(input, cursor, line)) {
+        set_error(error, "training checkpoint magic is invalid");
+        return false;
+    }
+    const bool has_optimizer_state = line == kMagicV2;
+    if (!has_optimizer_state && line != kMagicV1) {
         set_error(error, "training checkpoint magic is invalid");
         return false;
     }
@@ -189,6 +296,8 @@ bool TrainingCheckpoint::load(std::string_view input,
         !read_uint_field(input, cursor, "tokens_processed", loaded.tokens_processed, error) ||
         !read_uint_field(input, cursor, "next_batch_index", loaded.next_batch_index, error) ||
         !read_float_field(input, cursor, "learning_rate", loaded.learning_rate, error)) return false;
+    OptimizerState loaded_optimizer;
+    if (has_optimizer_state && !read_optimizer_state(input, cursor, loaded_optimizer, error)) return false;
     if (!read_line(input, cursor, line) || line != "model_checkpoint_bytes" ||
         !read_line(input, cursor, line)) {
         set_error(error, "training checkpoint model payload header is invalid");
@@ -206,6 +315,9 @@ bool TrainingCheckpoint::load(std::string_view input,
     }
     if (!TransformerCheckpoint::load(model_payload, model, parameters, error, expected_tokenizer)) return false;
     progress = std::move(loaded);
+    if (optimizer_state != nullptr) {
+        *optimizer_state = has_optimizer_state ? std::move(loaded_optimizer) : OptimizerState{};
+    }
     if (error != nullptr) error->clear();
     return true;
 }

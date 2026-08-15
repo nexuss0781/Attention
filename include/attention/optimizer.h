@@ -9,10 +9,31 @@
 
 namespace attention {
 
+enum class OptimizerKind {
+    SGD,
+    AdamW,
+};
+
+struct OptimizerState {
+    OptimizerKind kind = OptimizerKind::SGD;
+    float learning_rate = 0.0f;
+    float beta1 = 0.0f;
+    float beta2 = 0.0f;
+    float epsilon = 0.0f;
+    float weight_decay = 0.0f;
+    float gradient_clip_norm = 0.0f;
+    std::uint64_t step_count = 0;
+    std::vector<std::string> parameter_names;
+    std::vector<std::vector<float>> first_moments;
+    std::vector<std::vector<float>> second_moments;
+};
+
 class Optimizer {
 public:
     virtual ~Optimizer() = default;
     virtual bool step(ParameterStore& parameters, std::string* error = nullptr) const = 0;
+    virtual bool export_state(OptimizerState& state, std::string* error = nullptr) const = 0;
+    virtual bool import_state(const OptimizerState& state, std::string* error = nullptr) = 0;
 };
 
 class SgdOptimizer final : public Optimizer {
@@ -24,6 +45,8 @@ public:
     [[nodiscard]] float gradient_clip_norm() const noexcept { return gradient_clip_norm_; }
 
     bool step(ParameterStore& parameters, std::string* error = nullptr) const override;
+    bool export_state(OptimizerState& state, std::string* error = nullptr) const override;
+    bool import_state(const OptimizerState& state, std::string* error = nullptr) override;
 
 private:
     float learning_rate_ = 0.0f;
@@ -50,6 +73,8 @@ public:
     [[nodiscard]] std::uint64_t step_count() const noexcept { return step_count_; }
 
     bool step(ParameterStore& parameters, std::string* error = nullptr) const override;
+    bool export_state(OptimizerState& state, std::string* error = nullptr) const override;
+    bool import_state(const OptimizerState& state, std::string* error = nullptr) override;
 
 private:
     bool initialize_moments(const ParameterStore& parameters, std::string* error) const;

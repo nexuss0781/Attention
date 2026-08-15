@@ -2,6 +2,7 @@
 #define ATTENTION_TRAINING_CHECKPOINT_H
 
 #include "attention/checkpoint.h"
+#include "attention/optimizer.h"
 
 #include <cstdint>
 #include <string>
@@ -26,14 +27,16 @@ public:
                           const TrainingProgress& progress,
                           std::string& output,
                           std::string* error = nullptr,
-                          const TokenizerMetadata& tokenizer = TokenizerMetadata::byte_level_v1());
+                          const TokenizerMetadata& tokenizer = TokenizerMetadata::byte_level_v1(),
+                          const OptimizerState* optimizer_state = nullptr);
 
     static bool load(std::string_view input,
                      TransformerModel& model,
                      ParameterStore& parameters,
                      TrainingProgress& progress,
                      std::string* error = nullptr,
-                     const TokenizerMetadata& expected_tokenizer = TokenizerMetadata::byte_level_v1());
+                     const TokenizerMetadata& expected_tokenizer = TokenizerMetadata::byte_level_v1(),
+                     OptimizerState* optimizer_state = nullptr);
 };
 
 } // namespace attention
