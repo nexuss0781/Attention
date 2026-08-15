@@ -488,7 +488,12 @@ PY
             --executable "${BUILD_DIR}/attention_stage0_training" \
             --train-tokens "${MODULE_DIR}/train.tokens" \
             --validation-tokens "${MODULE_DIR}/validation.tokens"
-    ATTENTION_SESSION_ID="${session_id}_finetune" \
+    local finetune_resume_env=()
+    if [[ -f "${session_dir}/finetuning_state.checkpoint" ]]; then
+        finetune_resume_env=("ATTENTION_RESUME_TRAINING_CHECKPOINT=${session_dir}/finetuning_state.checkpoint")
+        echo "Resuming fine-tuning from: ${session_dir}/finetuning_state.checkpoint"
+    fi
+    env "ATTENTION_SESSION_ID=${session_id}_finetune" \
         ATTENTION_STAGE_ID="chapter1_english_sequence_learning_finetune" \
         ATTENTION_DATASET_ID="fineweb_english" \
         ATTENTION_CODE_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || printf unknown)" \
@@ -498,6 +503,7 @@ PY
         ATTENTION_OPTIMIZER="${ATTENTION_OPTIMIZER:-sgd}" \
         ATTENTION_ADAMW_WEIGHT_DECAY="${ATTENTION_ADAMW_WEIGHT_DECAY:-0.01}" \
         ATTENTION_MAX_STEPS="${MODULE_FINETUNE_STEPS}" \
+        "${finetune_resume_env[@]}" \
         "${BUILD_DIR}/attention_stage0_training" \
             "${MODULE_DIR}/finetune.tokens" \
             "${session_dir}/finetuning_log.json" \

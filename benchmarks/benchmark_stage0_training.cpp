@@ -87,7 +87,27 @@ int main(int argc, char** argv) {
 
     attention::TransformerModel model;
     attention::ParameterStore parameters;
-    if (argc >= 7) {
+    attention::TrainingProgress resume_progress;
+    attention::OptimizerState resume_optimizer_state;
+    bool resumed = false;
+    const char* resume_path = std::getenv("ATTENTION_RESUME_TRAINING_CHECKPOINT");
+    if (resume_path != nullptr && *resume_path != '\0') {
+        std::ifstream resume_input(resume_path, std::ios::binary);
+        if (!resume_input) {
+            std::cerr << "cannot open training resume checkpoint: " << resume_path << '\n';
+            return 1;
+        }
+        const std::string resume_payload((std::istreambuf_iterator<char>(resume_input)),
+                                         std::istreambuf_iterator<char>());
+        if (!attention::TrainingCheckpoint::load(resume_payload, model, parameters, resume_progress,
+                                                 &error, attention::TokenizerMetadata::byte_level_v1(),
+                                                 &resume_optimizer_state)) {
+            std::cerr << "training resume checkpoint load failed: " << error << '\n';
+            return 1;
+        }
+        config = model.config();
+        resumed = true;
+    } else if (argc >= 7) {
         std::ifstream parent_input(argv[6], std::ios::binary);
         if (!parent_input) {
             std::cerr << "cannot open parent checkpoint: " << argv[6] << '\n';
@@ -199,6 +219,10 @@ int main(int argc, char** argv) {
         std::cerr << "ATTENTION_OPTIMIZER must be sgd or adamw\n";
         return 1;
     }
+    if (resumed && !optimizer->import_state(resume_optimizer_state, &error)) {
+        std::cerr << "training optimizer state import failed: " << error << '\n';
+        return 1;
+    }
     std::uint64_t validation_interval = 1;
     const char* validation_interval_text = std::getenv("ATTENTION_VALIDATION_INTERVAL");
     if (validation_interval_text != nullptr) {
@@ -231,12 +255,24 @@ int main(int argc, char** argv) {
     std::cout << std::setprecision(9) << "step,loss_before,loss_after,gradient_l2_norm,validation_loss\n";
     float first_loss = 0.0f;
     float last_loss = 0.0f;
+    bool has_first_loss = false;
     float final_validation_loss = 0.0f;
     std::uint64_t last_validation_step = std::numeric_limits<std::uint64_t>::max();
     attention::TrainingBatch last_batch;
-    std::uint64_t step = 0;
+    std::uint64_t step = resumed ? resume_progress.global_step : 0;
+    std::size_t resume_batch_index = resumed && loader.batch_count() != 0
+        ? static_cast<std::size_t>(resume_progress.next_batch_index % loader.batch_count())
+        : 0;
     while (max_steps == 0 || step < max_steps) {
         loader.reset();
+        for (std::size_t skipped = 0; skipped < resume_batch_index; ++skipped) {
+            attention::TrainingBatch discarded;
+            if (!loader.next(discarded, &error)) {
+                std::cerr << "training resume batch skip failed: " << error << '\n';
+                return 1;
+            }
+        }
+        resume_batch_index = 0;
         while (!loader.exhausted() && (max_steps == 0 || step < max_steps)) {
             attention::TrainingBatch batch;
             if (!loader.next(batch, &error)) {
@@ -277,7 +313,10 @@ int main(int argc, char** argv) {
                 std::cerr << "run logging failed: " << error << '\n';
                 return 1;
             }
-            if (step == 0) first_loss = result.loss_before;
+            if (!has_first_loss) {
+                first_loss = result.loss_before;
+                has_first_loss = true;
+            }
             last_loss = result.loss_after;
             last_batch = batch;
             std::cout << step << ',' << result.loss_before << ',' << result.loss_after << ','
@@ -294,7 +333,7 @@ int main(int argc, char** argv) {
         }
         final_validation_loss = validation_result.mean_loss;
     }
-    if (!(last_loss < first_loss)) {
+    if (!has_first_loss || !(last_loss < first_loss)) {
         std::cerr << "loss did not decrease" << '\n';
         return 1;
     }

@@ -67,6 +67,8 @@ def main() -> int:
             "ATTENTION_MAX_STEPS": str(manifest["max_steps"]),
         }
     )
+    if state_checkpoint.is_file():
+        environment["ATTENTION_RESUME_TRAINING_CHECKPOINT"] = str(state_checkpoint)
     command = [
         str(executable),
         str(train_tokens),
