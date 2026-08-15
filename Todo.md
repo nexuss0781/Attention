@@ -280,7 +280,7 @@ Attention is complete only when all of the following are true:
 
 ## Current Implementation Position
 
-The current implementation position is **Stage 5.1 training execution in progress**. The implementation includes linear aggregation, the conservative Attention/SMAO boundary, efficient long-context streaming, bounded hierarchical summaries, complete transformer forward execution, causal loss, correctness-first finite-difference backward propagation, deterministic forward coverage, checkpoint reload equivalence, malformed-input rejection, a finite-safe SGD optimizer, a minimal Trainer step, a deterministic multi-step Stage 0 run, and checkpoint reload verification. Batch loading, sequence packing, learning-rate scheduling, gradient accumulation, validation evaluation, configurable run management, and an analytical backward kernel remain future work.
+The current implementation position is **competency-gated English continual training in progress**. The implementation includes linear aggregation, the conservative Attention/SMAO boundary, efficient long-context streaming, bounded hierarchical summaries, complete transformer forward execution, causal loss, correctness-first finite-difference backward propagation, deterministic forward coverage, checkpoint reload equivalence, finite-safe SGD, deterministic batch loading, held-out validation, resumable training state, English chunk preparation, competency curriculum validation, immutable session artifacts, parent-checkpoint continuation, and a run.sh workflow that stops for manual review. Learning-rate scheduling, gradient accumulation, analytical backward propagation, and scale-up to approved large English data remain future work.
 
 ### Verified State Snapshot
 
@@ -292,13 +292,14 @@ The current implementation position is **Stage 5.1 training execution in progres
 | Stage 2.2 | Complete | Tensor/parameter contracts and `46/46` foundation verification |
 | Stage 2.3 | In progress | Embedding, positional, QKV, causal-mask, linear aggregation, conservative SMAO boundary, efficient long-context stream, composable transformer blocks, and bounded hierarchical summaries are complete; exact retrieval remains unclaimed |
 | Stage 2.4 | Complete | Forward, causal loss, correctness-first backward propagation, gradient-flow checks, numerical gradient checks, deterministic forward, checkpoint reload, and malformed-input coverage are verified |
-| Stage 5.1 | In progress | Finite-safe SGD, deterministic batch loading, sequence packing, multi-step Stage 0 loss decrease, held-out validation loss, checkpoint continuity, structured logging, and resume equivalence are verified; scheduling, accumulation, and full-scale data loading remain |
-| Current test state | Verified | `125/125` tests pass in Release and portable sanitizer configurations; Stage 0 training, held-out validation, persisted training-state reload, and interrupted-resume equivalence are deterministic |
+| Stage 5.1 | In progress | Finite-safe SGD, deterministic batch loading, sequence packing, held-out validation, structured logging, and resume equivalence are verified |
+| Stage 5.5 | In progress | English competency curriculum, bounded English chunk preparation, immutable session artifacts, parent-checkpoint continuation, and manual review stop are verified; promotion and large-source preparation remain |
+| Current test state | Verified | `125/125` tests pass in Release and portable sanitizer configurations; the first English competency session produced a sealed AWAITING_REVIEW artifact |
 | Complexity state | Verified | No live-source `n × n`, `sequence_length × sequence_length`, or `context_length × context_length` token-pair allocation pattern |
 
 ### Ordered Walkthrough from Todo.md
 
-The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, Stage 4.2 deterministic ingestion/normalization, and the first Stage 4.3 duplicate/leakage-control slice are verified. The Stage 5.1 training slice now runs a deterministic file-backed batch stream, packs fixed causal sequences, logs per-step training and held-out validation loss plus gradient norms, and demonstrates loss reduction from `1.18923914` to `1.11430740`. The persisted training-state envelope reproduces the final loss, and interrupted-versus-uninterrupted training produces identical final parameters; see `docs/STAGE0_VALIDATION_RESUME_RESULT.md`. This remains a diagnostic result on the tiny debug stream, not a language-quality claim. Next, add configurable run control and approved tokenized-shard preparation; FineWeb2 Stage 1 remains blocked until its approved subset and held-out split are ready.
+The next work must follow the checklist in order. Stage 2.1, Stage 2.2, Stage 2.3, and the Stage 2.4 correctness-first execution gate are complete and verified, including configuration serialization, linear-memory attention, bounded long-context state, transformer forward/loss, correctness-first finite-difference backward propagation, gradient checks, deterministic forward, checkpoint reload, and malformed-input rejection. Stage 3 tokenizer artifacts and measurements, tokenizer-aware checkpoint metadata, the Stage 4.1 data-policy/manifest contract, Stage 4.2 deterministic ingestion/normalization, and the first Stage 4.3 duplicate/leakage-control slice are verified. Stage 5.1 validation and resume gates are complete. The English competency path now selects FineWeb/FineWeb-Edu for pretraining, OASST1/UltraChat for instruction, HelpSteer2 for preference alignment, and AmbigQA for ambiguity clarification; see `data/english_competency_curriculum_v1.json`. The first bounded English session was trained from a parent checkpoint, validated, sealed, and stopped in AWAITING_REVIEW by `run.sh`. The next action is the user's manual competency decision; no checkpoint is promoted automatically.
 
 Every next step must update the corresponding checklist item only after its implementation, tests, documentation, and complexity audit have passed. No future attention component may introduce an implicit O(n²) token-pair computation or allocation.
 
@@ -486,6 +487,52 @@ Every next step must update the corresponding checklist item only after its impl
 **Deliverables:** Training executable, run configuration, logging system, checkpoint system, resume support, diagnostics, experiment reports.
 
 **Completion gate:** A run can stop and resume, produces complete metadata, and can be compared against another run without ambiguity.
+
+## Stage 5.5 — Competency-Gated English Continual Training
+
+**Purpose:** Convert language learning into bounded, competency-based sessions with deterministic chunk selection, explicit validation, immutable artifacts, parent-checkpoint lineage, and a mandatory manual promote/retry/abort decision.
+
+**Prerequisites:** Stage 5.1 validation and resume gates complete; English curriculum selection and chunk-preparation contracts defined.
+
+### 5.5.1 Session contract and artifacts
+
+- [x] Define `attention.session_manifest.v1`.
+- [x] Require one bounded dataset chunk per session.
+- [x] Record parent checkpoint and SHA-256 lineage.
+- [x] Record dataset manifest, chunk manifest, seed, step budget, and token budget.
+- [x] Save immutable model, training-state, training-log, validation, trace, and artifact-manifest files.
+- [x] Stop automatically at `AWAITING_REVIEW`.
+- [x] Require an explicit `PROMOTE`, `RETRY`, or `ABORT` decision.
+- [x] Prevent automatic promotion.
+
+### 5.5.2 English curriculum and chunk preparation
+
+- [x] Select English-only pretraining, instruction, preference, and ambiguity data roles.
+- [x] Define English language filtering and source-lineage controls.
+- [x] Implement stable document-range selection.
+- [x] Implement bounded train/validation token budgets.
+- [x] Enforce train/validation document disjointness.
+- [ ] Download and approve the first FineWeb English subset.
+- [ ] Prepare the first FineWeb-Edu tranche.
+- [ ] Prepare English OASST1 and UltraChat instruction chunks.
+- [ ] Prepare HelpSteer2 preference chunks.
+- [ ] Prepare AmbigQA clarification competency chunks.
+
+### 5.5.3 Competency progression
+
+- [x] Define causal-basics mastery contract.
+- [x] Define English local-coherence competency.
+- [x] Define explanatory and factual-language competencies.
+- [x] Define instruction-following competency.
+- [x] Define ambiguity-handling competency.
+- [x] Define conversational-quality competency.
+- [ ] Add fixed held-out competency examples and scoring implementations.
+- [ ] Add manual review report templates for representative model outputs.
+- [ ] Classify repeated failures across independent chunks before alleging an architectural limitation.
+
+**Deliverables:** English curriculum manifest, competency contract, chunk preparer, session-artifact manager, run.sh orchestrator, and first sealed English session.
+
+**Completion gate:** A bounded session trains from its parent checkpoint, produces finite and reproducible training/validation results, saves immutable artifacts, stops for manual review, and promotes only after an explicit user decision.
 
 ## Stage 6 — Basic Language-Learning Proof
 

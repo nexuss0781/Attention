@@ -237,7 +237,12 @@ bool TransformerModel::causal_cross_entropy(const Tensor& logits,
     return true;
 }
 
-std::size_t TransformerModel::vocabulary_size() const noexcept { return config_.vocabulary_size; }
+const TransformerConfig& TransformerModel::config() const noexcept {
+    return config_;
+}
+
+std::size_t TransformerModel::vocabulary_size() const noexcept {
+ return config_.vocabulary_size; }
 std::size_t TransformerModel::context_length() const noexcept { return config_.context_length; }
 std::size_t TransformerModel::hidden_size() const noexcept { return config_.hidden_size; }
 std::size_t TransformerModel::layer_count() const noexcept { return config_.layer_count; }

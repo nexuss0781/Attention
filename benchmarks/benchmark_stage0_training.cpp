@@ -38,7 +38,7 @@ bool load_tokens(const std::string& path, std::vector<std::size_t>& tokens, std:
 
 int main(int argc, char** argv) {
     attention::TransformerConfig config;
-    config.vocabulary_size = 3;
+    config.vocabulary_size = argc >= 2 ? 260 : 3;
     config.context_length = 4;
     config.layer_count = 1;
     config.hidden_size = 2;
@@ -69,7 +69,20 @@ int main(int argc, char** argv) {
 
     attention::TransformerModel model;
     attention::ParameterStore parameters;
-    if (!model.register_parameters(config, parameters, &error) || !parameters.initialize(17, &error)) {
+    if (argc >= 7) {
+        std::ifstream parent_input(argv[6], std::ios::binary);
+        if (!parent_input) {
+            std::cerr << "cannot open parent checkpoint: " << argv[6] << '\n';
+            return 1;
+        }
+        const std::string parent_payload((std::istreambuf_iterator<char>(parent_input)),
+                                         std::istreambuf_iterator<char>());
+        if (!attention::TransformerCheckpoint::load(parent_payload, model, parameters, &error)) {
+            std::cerr << "parent checkpoint load failed: " << error << '\n';
+            return 1;
+        }
+        config = model.config();
+    } else if (!model.register_parameters(config, parameters, &error) || !parameters.initialize(17, &error)) {
         std::cerr << "initialization failed: " << error << '\n';
         return 1;
     }
@@ -79,10 +92,14 @@ int main(int argc, char** argv) {
         return 1;
     }
     attention::TrainingRunMetadata metadata;
-    metadata.run_id = "stage0-debug-training";
-    metadata.stage = "stage0_debug";
-    metadata.dataset_id = dataset_id;
-    metadata.dataset_revision = "fixed-local-v1";
+    const char* session_id = std::getenv("ATTENTION_SESSION_ID");
+    const char* stage_id = std::getenv("ATTENTION_STAGE_ID");
+    const char* dataset_id_override = std::getenv("ATTENTION_DATASET_ID");
+    const char* dataset_revision = std::getenv("ATTENTION_DATASET_REVISION");
+    metadata.run_id = session_id != nullptr ? session_id : "stage0-debug-training";
+    metadata.stage = stage_id != nullptr ? stage_id : "stage0_debug";
+    metadata.dataset_id = dataset_id_override != nullptr ? dataset_id_override : dataset_id;
+    metadata.dataset_revision = dataset_revision != nullptr ? dataset_revision : "fixed-local-v1";
     const char* source_checksum = std::getenv("ATTENTION_SOURCE_SHA256");
     metadata.source_checksums = source_checksum != nullptr ? source_checksum : "not-provided";
     metadata.tokenizer_version = "attention.byte_utf8.v1";
@@ -100,9 +117,17 @@ int main(int argc, char** argv) {
         std::cerr << "run metadata initialization failed: " << error << '\n';
         return 1;
     }
-    const std::vector<std::size_t> validation_tokens{1, 2, 0, 1, 2, 0, 1, 2};
+    std::vector<std::size_t> validation_tokens;
+    if (argc >= 5) {
+        if (!load_tokens(argv[4], validation_tokens, error)) {
+            std::cerr << error << '\n';
+            return 1;
+        }
+    } else {
+        validation_tokens = {1, 2, 0, 1, 2, 0, 1, 2};
+    }
     attention::TrainingBatchLoader validation_loader;
-    if (!validation_loader.initialize(validation_tokens, 1, 4, true, &error)) {
+    if (!validation_loader.initialize(std::move(validation_tokens), 1, 4, true, &error)) {
         std::cerr << "validation loader initialization failed: " << error << '\n';
         return 1;
     }
@@ -192,6 +217,9 @@ int main(int argc, char** argv) {
     const std::string training_checkpoint_path = argc >= 4
                                                    ? argv[3]
                                                    : "/tmp/attention_stage0_training_state.chk";
+    const std::string model_checkpoint_path = argc >= 6
+                                               ? argv[5]
+                                               : "/tmp/attention_stage0_model.checkpoint";
     {
         std::ofstream state_output(training_checkpoint_path, std::ios::binary);
         if (!state_output) {
@@ -199,6 +227,14 @@ int main(int argc, char** argv) {
             return 1;
         }
         state_output << training_checkpoint;
+    }
+    {
+        std::ofstream model_output(model_checkpoint_path, std::ios::binary);
+        if (!model_output) {
+            std::cerr << "cannot write model checkpoint: " << model_checkpoint_path << '\n';
+            return 1;
+        }
+        model_output << checkpoint;
     }
     std::ifstream state_input(training_checkpoint_path, std::ios::binary);
     if (!state_input) {
@@ -243,5 +279,6 @@ int main(int argc, char** argv) {
     std::cout << "validation_loss," << final_validation_loss << '\n';
     std::cout << "run_log," << output_path << '\n';
     std::cout << "training_checkpoint," << training_checkpoint_path << '\n';
+    std::cout << "model_checkpoint," << model_checkpoint_path << '\n';
     return 0;
 }

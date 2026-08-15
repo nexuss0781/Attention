@@ -1,0 +1,191 @@
+{
+  "format": "attention.english_competency_curriculum.v1",
+  "status": "selected-not-downloaded",
+  "language": "en",
+  "tokenizer_version": "attention.byte_utf8.v1",
+  "base_checkpoint": "stage0_debug",
+  "session_policy": {
+    "one_chunk_per_session": true,
+    "document_order": "stable_document_id",
+    "selection_seed_required": true,
+    "max_documents_per_session": 1000,
+    "max_packed_tokens_per_session": 100000,
+    "train_validation_document_disjoint": true,
+    "automatic_promotion_forbidden": true,
+    "manual_review_required": true,
+    "immutable_session_artifacts": true,
+    "no_o_n_squared_token_pair_storage": true
+  },
+  "dataset_roles": [
+    {
+      "dataset_id": "fineweb_english",
+      "role": "english_pretraining",
+      "url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb",
+      "license": "ODC-By-1.0-and-CommonCrawl-terms-review-required",
+      "language_policy": "dedicated_english_release",
+      "quality_policy": "source_manifest_normalization_deduplication_boilerplate_and_safety_checks"
+    },
+    {
+      "dataset_id": "fineweb_edu_english",
+      "role": "english_educational_pretraining",
+      "url": "https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu",
+      "license": "ODC-By-1.0-and-CommonCrawl-terms-review-required",
+      "language_policy": "dedicated_english_release",
+      "quality_policy": "source_manifest_normalization_deduplication_boilerplate_and_safety_checks"
+    },
+    {
+      "dataset_id": "dolma_english",
+      "role": "english_pretraining_alternative",
+      "url": "https://aclanthology.org/2024.acl-long.840/",
+      "license": "exact-release-and-source-license-review-required",
+      "language_policy": "english_corpus_release",
+      "quality_policy": "source_manifest_normalization_deduplication_boilerplate_and_safety_checks"
+    },
+    {
+      "dataset_id": "oasst1_english",
+      "role": "english_supervised_instruction",
+      "url": "https://huggingface.co/datasets/OpenAssistant/oasst1",
+      "license": "Apache-2.0-source-content-review-required",
+      "language_policy": "message_level_english_filter_high_confidence",
+      "quality_policy": "conversation_tree_integrity_human_feedback_and_duplicate_checks"
+    },
+    {
+      "dataset_id": "ultrachat_english",
+      "role": "english_supervised_instruction_broad_dialogue",
+      "url": "https://aclanthology.org/2023.emnlp-main.183/",
+      "license": "exact-release-and-source-license-review-required",
+      "language_policy": "english_only_release_or_message_level_filter",
+      "quality_policy": "synthetic_dialogue_quality_and_duplicate_checks"
+    },
+    {
+      "dataset_id": "helpsteer2_english",
+      "role": "english_preference_alignment",
+      "url": "https://huggingface.co/datasets/nvidia/HelpSteer2",
+      "license": "CC-BY-4.0",
+      "language_policy": "english_release",
+      "quality_policy": "preference_schema_and_annotation_integrity_checks"
+    },
+    {
+      "dataset_id": "ambigqa_english",
+      "role": "english_ambiguity_clarification",
+      "url": "https://aclanthology.org/2020.emnlp-main.466/",
+      "license": "exact-release-and-source-license-review-required",
+      "language_policy": "english_release",
+      "quality_policy": "question_interpretation_answer_and_rewrite_integrity_checks"
+    }
+  ],
+  "stages": [
+    {
+      "stage_id": "stage0_debug",
+      "dataset_id": "local_fixed_debug_stream",
+      "role": "pipeline_debugging",
+      "parent_checkpoint": null,
+      "output_checkpoint": "stage0_debug",
+      "competency_ids": ["causal_basics"],
+      "status": "complete"
+    },
+    {
+      "stage_id": "stage1_english_foundation",
+      "dataset_id": "fineweb_english",
+      "role": "english_pretraining",
+      "parent_checkpoint": "stage0_debug",
+      "output_checkpoint": "stage1_english_foundation",
+      "competency_ids": ["causal_basics", "english_local_coherence"],
+      "chunk_policy": "one_deterministic_document_chunk_per_session",
+      "status": "selected-not-prepared"
+    },
+    {
+      "stage_id": "stage2_english_educational",
+      "dataset_id": "fineweb_edu_english",
+      "role": "english_educational_pretraining",
+      "parent_checkpoint": "stage1_english_foundation",
+      "output_checkpoint": "stage2_english_educational",
+      "competency_ids": ["explanatory_language", "factual_language"],
+      "chunk_policy": "one_deterministic_document_chunk_per_session",
+      "status": "selected-not-prepared"
+    },
+    {
+      "stage_id": "stage3_english_instruction",
+      "dataset_id": "oasst1_english",
+      "role": "english_supervised_instruction",
+      "parent_checkpoint": "stage2_english_educational",
+      "output_checkpoint": "stage3_english_instruction",
+      "competency_ids": ["instruction_following", "conversational_quality"],
+      "chunk_policy": "one_deterministic_conversation_chunk_per_session",
+      "status": "selected-not-prepared"
+    },
+    {
+      "stage_id": "stage4_english_clarification",
+      "dataset_id": "ambigqa_english",
+      "role": "english_ambiguity_clarification",
+      "parent_checkpoint": "stage3_english_instruction",
+      "output_checkpoint": "stage4_english_clarification",
+      "competency_ids": ["ambiguity_handling"],
+      "chunk_policy": "one_deterministic_competency_chunk_per_session",
+      "status": "selected-not-prepared"
+    },
+    {
+      "stage_id": "stage5_english_preference",
+      "dataset_id": "helpsteer2_english",
+      "role": "english_preference_alignment",
+      "parent_checkpoint": "stage4_english_clarification",
+      "output_checkpoint": "stage5_english_preference",
+      "competency_ids": ["helpfulness_correctness_coherence"],
+      "chunk_policy": "one_deterministic_preference_chunk_per_session",
+      "status": "selected-not-prepared"
+    }
+  ],
+  "competencies": [
+    {
+      "competency_id": "causal_basics",
+      "level": 1,
+      "mastery_rule": "finite_loss_and_monotonic_diagnostic_loss_decrease_with_exact_reload"
+    },
+    {
+      "competency_id": "english_local_coherence",
+      "level": 2,
+      "mastery_rule": "held_out_sentence_completion_and_local_coherence_score_meets_manifest_threshold"
+    },
+    {
+      "competency_id": "explanatory_language",
+      "level": 3,
+      "mastery_rule": "held_out_definition_and_explanation_examples_pass_automated_structure_checks_and_manual_review"
+    },
+    {
+      "competency_id": "factual_language",
+      "level": 3,
+      "mastery_rule": "held_out_evidence_preservation_examples_pass_automated_structure_checks_and_manual_review"
+    },
+    {
+      "competency_id": "instruction_following",
+      "level": 4,
+      "mastery_rule": "held_out_constraint_following_examples_pass_required_format_and_content_checks"
+    },
+    {
+      "competency_id": "ambiguity_handling",
+      "level": 5,
+      "mastery_rule": "ambiguous_examples_receive_one_useful_clarification_or_explicit_assumption_without_invented_certainty"
+    },
+    {
+      "competency_id": "conversational_quality",
+      "level": 6,
+      "mastery_rule": "held_out_multi_turn_examples_pass_helpfulness_correctness_coherence_and_manual_review"
+    },
+    {
+      "competency_id": "helpfulness_correctness_coherence",
+      "level": 6,
+      "mastery_rule": "preference_and_manual_review_scores_meet_manifest_threshold_without_nan_or_regression_gate_failure"
+    }
+  ],
+  "global_gates": {
+    "approved_source_manifest_required": true,
+    "english_language_filter_required": true,
+    "train_validation_document_disjoint": true,
+    "parent_checkpoint_required_after_stage_zero": true,
+    "tokenizer_metadata_must_match_parent": true,
+    "session_manual_review_required": true,
+    "failed_competency_cannot_auto_promote": true,
+    "immutable_session_artifacts_required": true,
+    "no_o_n_squared_token_pair_storage": true
+  }
+}

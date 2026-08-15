@@ -48,6 +48,7 @@ public:
                                      float& loss,
                                      std::string* error = nullptr);
 
+    [[nodiscard]] const TransformerConfig& config() const noexcept;
     [[nodiscard]] std::size_t vocabulary_size() const noexcept;
     [[nodiscard]] std::size_t context_length() const noexcept;
     [[nodiscard]] std::size_t hidden_size() const noexcept;
