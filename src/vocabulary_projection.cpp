@@ -1,5 +1,7 @@
 #include "attention/vocabulary_projection.h"
 
+#include <Eigen/Dense>
+
 #include <cmath>
 #include <limits>
 
@@ -108,24 +110,19 @@ bool VocabularyProjection::forward(const Tensor& hidden,
     if (!logits.reset({batch, sequence, vocabulary_size_}, TensorDataType::F32, TensorDevice::CPU, error)) {
         return false;
     }
-    for (std::size_t token = 0; token < batch * sequence; ++token) {
-        const std::size_t hidden_offset = token * hidden_size_;
-        const std::size_t logits_offset = token * vocabulary_size_;
-        for (std::size_t vocabulary = 0; vocabulary < vocabulary_size_; ++vocabulary) {
-            double sum = static_cast<double>(bias->value.data()[vocabulary]);
-            const std::size_t weight_offset = vocabulary * hidden_size_;
-            for (std::size_t dimension = 0; dimension < hidden_size_; ++dimension) {
-                sum += static_cast<double>(hidden.data()[hidden_offset + dimension]) *
-                       static_cast<double>(weight->value.data()[weight_offset + dimension]);
-            }
-            const float value = static_cast<float>(sum);
-            if (!std::isfinite(value)) {
-                set_error(error, "vocabulary projection logits contain NaN or infinity");
-                return false;
-            }
-            logits.data()[logits_offset + vocabulary] = value;
-        }
-    }
+    using RowMajorMatrix = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+    using RowMajorVector = Eigen::Matrix<float, Eigen::Dynamic, 1>;
+    const std::size_t token_count = batch * sequence;
+    Eigen::Map<const RowMajorMatrix> hidden_map(
+        hidden.data(), static_cast<Eigen::Index>(token_count), static_cast<Eigen::Index>(hidden_size_));
+    Eigen::Map<const RowMajorMatrix> weight_map(
+        weight->value.data(), static_cast<Eigen::Index>(vocabulary_size_), static_cast<Eigen::Index>(hidden_size_));
+    Eigen::Map<RowMajorMatrix> logits_map(
+        logits.data(), static_cast<Eigen::Index>(token_count), static_cast<Eigen::Index>(vocabulary_size_));
+    logits_map.noalias() = hidden_map * weight_map.transpose();
+    const Eigen::Map<const RowMajorVector> bias_map(
+        bias->value.data(), static_cast<Eigen::Index>(vocabulary_size_));
+    logits_map.rowwise() += bias_map.transpose();
     if (error != nullptr) error->clear();
     return true;
 }
@@ -153,23 +150,19 @@ bool VocabularyProjection::forward_last(const Tensor& hidden,
     if (!logits.reset({hidden.shape()[0], vocabulary_size_}, TensorDataType::F32, TensorDevice::CPU, error)) {
         return false;
     }
-    for (std::size_t batch = 0; batch < hidden.shape()[0]; ++batch) {
-        const std::size_t hidden_offset = batch * hidden_size_;
-        for (std::size_t vocabulary = 0; vocabulary < vocabulary_size_; ++vocabulary) {
-            double sum = static_cast<double>(bias->value.data()[vocabulary]);
-            const std::size_t weight_offset = vocabulary * hidden_size_;
-            for (std::size_t dimension = 0; dimension < hidden_size_; ++dimension) {
-                sum += static_cast<double>(hidden.data()[hidden_offset + dimension]) *
-                       static_cast<double>(weight->value.data()[weight_offset + dimension]);
-            }
-            const float value = static_cast<float>(sum);
-            if (!std::isfinite(value)) {
-                set_error(error, "vocabulary projection logits contain NaN or infinity");
-                return false;
-            }
-            logits.data()[batch * vocabulary_size_ + vocabulary] = value;
-        }
-    }
+    using RowMajorMatrix = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+    using RowMajorVector = Eigen::Matrix<float, Eigen::Dynamic, 1>;
+    const Eigen::Index batch_count = static_cast<Eigen::Index>(hidden.shape()[0]);
+    Eigen::Map<const RowMajorMatrix> hidden_map(
+        hidden.data(), batch_count, static_cast<Eigen::Index>(hidden_size_));
+    Eigen::Map<const RowMajorMatrix> weight_map(
+        weight->value.data(), static_cast<Eigen::Index>(vocabulary_size_), static_cast<Eigen::Index>(hidden_size_));
+    Eigen::Map<RowMajorMatrix> logits_map(
+        logits.data(), batch_count, static_cast<Eigen::Index>(vocabulary_size_));
+    logits_map.noalias() = hidden_map * weight_map.transpose();
+    const Eigen::Map<const RowMajorVector> bias_map(
+        bias->value.data(), static_cast<Eigen::Index>(vocabulary_size_));
+    logits_map.rowwise() += bias_map.transpose();
     if (error != nullptr) error->clear();
     return true;
 }

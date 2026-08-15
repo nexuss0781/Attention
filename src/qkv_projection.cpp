@@ -1,5 +1,7 @@
 #include "attention/qkv_projection.h"
 
+#include <Eigen/Dense>
+
 #include <cmath>
 #include <limits>
 
@@ -124,25 +126,22 @@ bool QKVProjection::forward(const Tensor& input,
     }
 
     const std::size_t token_count = batch_size * sequence_length;
+    using RowMajorMatrix = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+    using RowMajorVector = Eigen::Matrix<float, Eigen::Dynamic, 1>;
     const auto project = [this, token_count](const Tensor& source,
                                              const Parameter& weight,
                                              const Parameter& bias,
                                              Tensor& destination) {
-        for (std::size_t token = 0; token < token_count; ++token) {
-            const float* input_row = source.data() + token * hidden_size_;
-            float* output_row = destination.data() + token * hidden_size_;
-            const float* weight_data = weight.value.data();
-            const float* bias_data = bias.value.data();
-            for (std::size_t output_channel = 0; output_channel < hidden_size_; ++output_channel) {
-                double accumulator = static_cast<double>(bias_data[output_channel]);
-                const float* weight_row = weight_data + output_channel * hidden_size_;
-                for (std::size_t input_channel = 0; input_channel < hidden_size_; ++input_channel) {
-                    accumulator += static_cast<double>(weight_row[input_channel]) *
-                                   static_cast<double>(input_row[input_channel]);
-                }
-                output_row[output_channel] = static_cast<float>(accumulator);
-            }
-        }
+        Eigen::Map<const RowMajorMatrix> input_map(
+            source.data(), static_cast<Eigen::Index>(token_count), static_cast<Eigen::Index>(hidden_size_));
+        Eigen::Map<const RowMajorMatrix> weight_map(
+            weight.value.data(), static_cast<Eigen::Index>(hidden_size_), static_cast<Eigen::Index>(hidden_size_));
+        Eigen::Map<RowMajorMatrix> output_map(
+            destination.data(), static_cast<Eigen::Index>(token_count), static_cast<Eigen::Index>(hidden_size_));
+        output_map.noalias() = input_map * weight_map.transpose();
+        const Eigen::Map<const RowMajorVector> bias_map(
+            bias.value.data(), static_cast<Eigen::Index>(hidden_size_));
+        output_map.rowwise() += bias_map.transpose();
     };
     project(input, *query_weight, *query_bias, output.query);
     project(input, *key_weight, *key_bias, output.key);

@@ -1,5 +1,7 @@
 #include "attention/feed_forward.h"
 
+#include <Eigen/Dense>
+
 #include <cmath>
 #include <limits>
 #include <new>
@@ -120,28 +122,30 @@ bool FeedForward::forward(const Tensor& input,
 
     if (!output.reset(shape, TensorDataType::F32, TensorDevice::CPU, error)) return false;
     try {
-        std::vector<float> expanded(feed_forward_size_, 0.0f);
-        for (std::size_t batch = 0; batch < batch_size; ++batch) {
-            for (std::size_t position = 0; position < sequence_length; ++position) {
-                const std::size_t input_offset = (batch * sequence_length + position) * hidden_size_;
-                for (std::size_t expansion = 0; expansion < feed_forward_size_; ++expansion) {
-                    double sum = static_cast<double>(up_bias->value.data()[expansion]);
-                    for (std::size_t hidden = 0; hidden < hidden_size_; ++hidden) {
-                        sum += static_cast<double>(input.data()[input_offset + hidden]) *
-                               static_cast<double>(up_weight->value.data()[hidden * feed_forward_size_ + expansion]);
-                    }
-                    expanded[expansion] = activate(static_cast<float>(sum), activation_);
-                }
-                for (std::size_t hidden = 0; hidden < hidden_size_; ++hidden) {
-                    double sum = static_cast<double>(down_bias->value.data()[hidden]);
-                    for (std::size_t expansion = 0; expansion < feed_forward_size_; ++expansion) {
-                        sum += static_cast<double>(expanded[expansion]) *
-                               static_cast<double>(down_weight->value.data()[expansion * hidden_size_ + hidden]);
-                    }
-                    output.data()[input_offset + hidden] = static_cast<float>(sum);
-                }
-            }
+        using RowMajorMatrix = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+        using RowMajorVector = Eigen::Matrix<float, Eigen::Dynamic, 1>;
+        const auto token_count = batch_size * sequence_length;
+        Eigen::Map<const RowMajorMatrix> input_map(
+            input.data(), static_cast<Eigen::Index>(token_count), static_cast<Eigen::Index>(hidden_size_));
+        Eigen::Map<const RowMajorMatrix> up_weight_map(
+            up_weight->value.data(), static_cast<Eigen::Index>(hidden_size_), static_cast<Eigen::Index>(feed_forward_size_));
+        Eigen::Map<const RowMajorVector> up_bias_map(
+            up_bias->value.data(), static_cast<Eigen::Index>(feed_forward_size_));
+        RowMajorMatrix expanded(static_cast<Eigen::Index>(token_count),
+                                static_cast<Eigen::Index>(feed_forward_size_));
+        expanded.noalias() = input_map * up_weight_map;
+        expanded.rowwise() += up_bias_map.transpose();
+        for (Eigen::Index index = 0; index < expanded.size(); ++index) {
+            expanded.data()[index] = activate(expanded.data()[index], activation_);
         }
+        Eigen::Map<const RowMajorMatrix> down_weight_map(
+            down_weight->value.data(), static_cast<Eigen::Index>(feed_forward_size_), static_cast<Eigen::Index>(hidden_size_));
+        Eigen::Map<RowMajorMatrix> output_map(
+            output.data(), static_cast<Eigen::Index>(token_count), static_cast<Eigen::Index>(hidden_size_));
+        Eigen::Map<const RowMajorVector> down_bias_map(
+            down_bias->value.data(), static_cast<Eigen::Index>(hidden_size_));
+        output_map.noalias() = expanded * down_weight_map;
+        output_map.rowwise() += down_bias_map.transpose();
     } catch (const std::bad_alloc&) {
         set_error(error, "feed-forward workspace allocation failed");
         return false;
