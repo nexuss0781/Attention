@@ -249,6 +249,10 @@ if(ATTENTION_BUILD_BENCHMARKS)
     add_executable(attention_initialize_checkpoint benchmarks/benchmark_initialize_checkpoint.cpp)
     target_link_libraries(attention_initialize_checkpoint PRIVATE attention_static)
     target_compile_features(attention_initialize_checkpoint PRIVATE cxx_std_20)
+
+    add_executable(attention_stage0_evaluation benchmarks/benchmark_stage0_evaluation.cpp)
+    target_link_libraries(attention_stage0_evaluation PRIVATE attention_static)
+    target_compile_features(attention_stage0_evaluation PRIVATE cxx_std_20)
     if(ATTENTION_ENABLE_PERFORMANCE_TESTS)
         add_test(NAME AttentionPerformanceRegression
                  COMMAND attention_benchmarks --full --strict --repeats 5)

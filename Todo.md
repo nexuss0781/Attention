@@ -482,7 +482,8 @@ Every next step must update the corresponding checklist item only after its impl
 - [ ] Detect memory exhaustion.
 - [x] Add short diagnostic runs before long runs.
 - [ ] Add a tiny overfit configuration.
-- [ ] Store diagnostic reports with each run.
+- [x] Store diagnostic reports with each run.
+- [x] Add a deterministic fixed-prompt checkpoint evaluation probe.
 
 **Deliverables:** Training executable, run configuration, logging system, checkpoint system, resume support, diagnostics, experiment reports.
 
@@ -544,7 +545,7 @@ Every next step must update the corresponding checklist item only after its impl
 
 - [ ] Run the tiny-data overfitting test.
 - [ ] Verify that loss decreases on the tiny dataset.
-- [ ] Verify that generated samples memorize the tiny diagnostic set as expected.
+- [-] Verify that generated samples memorize the tiny diagnostic set as expected; the current probe is deterministic but degenerate and does not yet show useful English generation.
 - [ ] Run a small held-out training experiment.
 - [ ] Compare against an untrained baseline.
 - [ ] Measure training loss.

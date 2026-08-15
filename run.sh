@@ -14,6 +14,7 @@ Usage:
   ./run.sh validate-curriculum
   ./run.sh prepare-fineweb OUTPUT_DIR [START_DOCUMENT] [TRAIN_DOCUMENTS] [VALIDATION_DOCUMENTS] [MAX_TRAIN_TOKENS] [MAX_VALIDATION_TOKENS]
   ./run.sh bootstrap OUTPUT_CHECKPOINT
+  ./run.sh evaluate CHECKPOINT OUTPUT_REPORT [NEW_TOKENS]
   ./run.sh init SESSION_ID STAGE_ID COMPETENCY_ID PARENT_CHECKPOINT DATASET_MANIFEST DATASET_CHUNK SEED MAX_STEPS MAX_TOKENS
   ./run.sh train SESSION_ID TRAIN_TOKENS VALIDATION_TOKENS
   ./run.sh decide SESSION_ID DECISION_FILE
@@ -115,6 +116,15 @@ case "${command}" in
         ensure_build
         mkdir -p "$(dirname "${output_checkpoint}")"
         "${BUILD_DIR}/attention_initialize_checkpoint" "${output_checkpoint}"
+        ;;
+    evaluate)
+        [[ $# -ge 1 && $# -le 3 ]] || { usage; exit 2; }
+        checkpoint="$1"
+        output_report="${2:-/tmp/attention_stage0_evaluation.tsv}"
+        new_tokens="${3:-8}"
+        require_file "${checkpoint}"
+        ensure_build
+        "${BUILD_DIR}/attention_stage0_evaluation" "${checkpoint}" "${output_report}" "${new_tokens}"
         ;;
     init)
         [[ $# -eq 9 ]] || { usage; exit 2; }
