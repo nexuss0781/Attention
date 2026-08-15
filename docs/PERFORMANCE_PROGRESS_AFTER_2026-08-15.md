@@ -46,3 +46,11 @@ The Release suite passes 126/126. A separate AddressSanitizer/UndefinedBehaviorS
 ## Next performance gate
 
 The next implementation should add a production tensor backward and compare sequence-length scaling at T=32, 64, 128, and 256. The acceptance criterion is approximately linear backward growth, stable gradients, and no regression in the existing 126-test suite. Only after that should the project introduce AdamW with persisted moments, real batch training, true multi-head state mechanisms, and matched GRU/Transformer/SSM baselines.
+
+## True multi-head state milestone
+
+Commit `76751bb` makes the configured head count executable. With hidden size 32 and four heads, each head uses an 8x8 recurrent state rather than one 32x32 state. The four-head forward path, streaming path, and analytical backward path use the same partitioning. The Release suite increased to 127 tests, with 127/127 passing.
+
+A matched microbenchmark on the same real token stream measured approximately 832K tokens/sec for four-head Attention, 2.15M–2.32M tokens/sec for the GRU comparator, 4.14M–4.53M tokens/sec for a diagonal SSM comparator, and 17.9K tokens/sec for the causal dense softmax Transformer at context 2,048. Attention therefore already dominates the dense Transformer at long context, but it does not yet dominate GRU or diagonal SSM raw throughput. This is an optimization target, not a result to conceal.
+
+The current architecture comparison is documented separately in `docs/ARCHITECTURE_COMPARISON_AUDIT_2026-08-15.md`.
