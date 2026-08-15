@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -176,7 +177,28 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
-    attention::SgdOptimizer optimizer(metadata.learning_rate, gradient_clip_norm);
+    const char* optimizer_text = std::getenv("ATTENTION_OPTIMIZER");
+    const std::string optimizer_name = optimizer_text != nullptr ? optimizer_text : "sgd";
+    std::unique_ptr<attention::Optimizer> optimizer;
+    if (optimizer_name == "sgd") {
+        optimizer = std::make_unique<attention::SgdOptimizer>(metadata.learning_rate, gradient_clip_norm);
+    } else if (optimizer_name == "adamw") {
+        float weight_decay = 0.01f;
+        const char* weight_decay_text = std::getenv("ATTENTION_ADAMW_WEIGHT_DECAY");
+        if (weight_decay_text != nullptr) {
+            try {
+                weight_decay = std::stof(weight_decay_text);
+            } catch (...) {
+                std::cerr << "ATTENTION_ADAMW_WEIGHT_DECAY is invalid\n";
+                return 1;
+            }
+        }
+        optimizer = std::make_unique<attention::AdamWOptimizer>(
+            metadata.learning_rate, 0.9f, 0.999f, 1e-8f, weight_decay, gradient_clip_norm);
+    } else {
+        std::cerr << "ATTENTION_OPTIMIZER must be sgd or adamw\n";
+        return 1;
+    }
     std::uint64_t validation_interval = 1;
     const char* validation_interval_text = std::getenv("ATTENTION_VALIDATION_INTERVAL");
     if (validation_interval_text != nullptr) {
@@ -223,7 +245,7 @@ int main(int argc, char** argv) {
             }
             attention::TrainingStepResult result;
             if (!attention::Trainer::step(model, batch.token_ids, batch.batch_size,
-                                          batch.sequence_length, parameters, optimizer, result, &error)) {
+                                          batch.sequence_length, parameters, *optimizer, result, &error)) {
                 std::cerr << "training step failed: " << error << '\n';
                 return 1;
             }
@@ -375,6 +397,7 @@ int main(int argc, char** argv) {
     std::cout << "validation_interval," << validation_interval << '\n';
     std::cout << "gradient_clip_norm," << gradient_clip_norm << '\n';
     std::cout << "batch_size," << configured_batch_size << '\n';
+    std::cout << "optimizer," << optimizer_name << '\n';
     std::cout << "run_log," << output_path << '\n';
     std::cout << "training_checkpoint," << training_checkpoint_path << '\n';
     std::cout << "model_checkpoint," << model_checkpoint_path << '\n';

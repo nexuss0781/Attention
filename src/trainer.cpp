@@ -9,7 +9,7 @@ bool Trainer::step(const TransformerModel& model,
                    std::size_t batch_size,
                    std::size_t sequence_length,
                    ParameterStore& parameters,
-                   const SgdOptimizer& optimizer,
+                   const Optimizer& optimizer,
                    TrainingStepResult& result,
                    std::string* error) {
     if (batch_size == 0 || sequence_length < 2 || token_ids.size() != batch_size * sequence_length) {

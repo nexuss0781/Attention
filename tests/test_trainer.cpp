@@ -61,6 +61,27 @@ TEST(TrainerTest, ReloadsUpdatedWeightsWithExactLossEquivalence) {
     EXPECT_FLOAT_EQ(reloaded_loss, result.loss_after);
 }
 
+TEST(AdamWOptimizerTest, PerformsFiniteAdaptiveUpdates) {
+    const TransformerConfig config = make_training_config();
+    ParameterStore parameters;
+    ASSERT_TRUE(TransformerModel().register_parameters(config, parameters));
+    ASSERT_TRUE(parameters.initialize(41));
+    Parameter* embedding = parameters.find("embedding.weight");
+    ASSERT_NE(embedding, nullptr);
+    const float value_before = embedding->value.data()[0];
+    for (Parameter& parameter : parameters.parameters()) {
+        for (std::size_t index = 0; index < parameter.gradient.size(); ++index) {
+            parameter.gradient.data()[index] = 0.25f;
+        }
+    }
+    AdamWOptimizer optimizer(0.001f, 0.9f, 0.999f, 1e-8f, 0.01f, 1.0f);
+    std::string error;
+    ASSERT_TRUE(optimizer.step(parameters, &error)) << error;
+    EXPECT_EQ(optimizer.step_count(), 1u);
+    EXPECT_TRUE(parameters.all_finite());
+    EXPECT_NE(embedding->value.data()[0], value_before);
+}
+
 TEST(SgdOptimizerTest, ClipsGlobalGradientNorm) {
     const TransformerConfig config = make_training_config();
     ParameterStore parameters;
