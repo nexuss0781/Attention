@@ -64,6 +64,7 @@ def main() -> int:
             "ATTENTION_DATASET_ID": manifest["dataset_id"],
             "ATTENTION_DATASET_REVISION": manifest.get("dataset_revision", "session-manifest"),
             "ATTENTION_CODE_COMMIT": environment.get("ATTENTION_CODE_COMMIT", "unknown"),
+            "ATTENTION_MAX_STEPS": str(manifest["max_steps"]),
         }
     )
     command = [

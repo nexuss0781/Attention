@@ -523,13 +523,14 @@ Every next step must update the corresponding checklist item only after its impl
 
 ### 5.5.3 Competency progression
 
-- [x] Define causal-basics mastery contract.
+- [x] Define causal-basics mastery contract; the current upgraded-capacity trial still fails the language-generation gate.
 - [x] Define English local-coherence competency.
 - [x] Define explanatory and factual-language competencies.
 - [x] Define instruction-following competency.
 - [x] Define ambiguity-handling competency.
 - [x] Define conversational-quality competency.
 - [ ] Add fixed held-out competency examples and scoring implementations.
+- [ ] Pass the upgraded Stage 0 capacity gate with non-degenerate English continuation behavior.
 - [ ] Add manual review report templates for representative model outputs.
 - [ ] Classify repeated failures across independent chunks before alleging an architectural limitation.
 

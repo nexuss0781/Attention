@@ -95,6 +95,7 @@ set(ATTENTION_SOURCES
     src/vocabulary_projection.cpp
     src/transformer_block.cpp
     src/transformer_model.cpp
+    src/analytical_backward.cpp
     src/optimizer.cpp
     src/trainer.cpp
     src/training_data.cpp

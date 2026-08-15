@@ -11,11 +11,11 @@ int main(int argc, char** argv) {
     }
     attention::TransformerConfig config;
     config.vocabulary_size = 260;
-    config.context_length = 4;
-    config.layer_count = 1;
-    config.hidden_size = 2;
-    config.attention_head_count = 1;
-    config.feed_forward_size = 4;
+    config.context_length = 32;
+    config.layer_count = 2;
+    config.hidden_size = 32;
+    config.attention_head_count = 4;
+    config.feed_forward_size = 128;
     attention::TransformerModel model;
     attention::ParameterStore parameters;
     std::string error;

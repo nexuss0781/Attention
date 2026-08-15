@@ -5,7 +5,8 @@
 #include "attention/training_checkpoint.h"
 #include "attention/validation.h"
 
-#include <cstdlib>
+#include <cmath>
+#include <cstddef>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -38,12 +39,13 @@ bool load_tokens(const std::string& path, std::vector<std::size_t>& tokens, std:
 
 int main(int argc, char** argv) {
     attention::TransformerConfig config;
-    config.vocabulary_size = argc >= 2 ? 260 : 3;
-    config.context_length = 4;
-    config.layer_count = 1;
-    config.hidden_size = 2;
-    config.attention_head_count = 1;
-    config.feed_forward_size = 4;
+    const bool file_backed = argc >= 2;
+    config.vocabulary_size = file_backed ? 260 : 3;
+    config.context_length = file_backed ? 32 : 4;
+    config.layer_count = file_backed ? 2 : 1;
+    config.hidden_size = file_backed ? 32 : 2;
+    config.attention_head_count = file_backed ? 4 : 1;
+    config.feed_forward_size = file_backed ? 128 : 4;
 
     std::vector<std::size_t> token_stream;
     std::string error;
@@ -62,7 +64,8 @@ int main(int argc, char** argv) {
     }
 
     attention::TrainingBatchLoader loader;
-    if (!loader.initialize(std::move(token_stream), 1, 4, true, &error)) {
+    const std::size_t training_sequence_length = file_backed ? 32 : 4;
+    if (!loader.initialize(std::move(token_stream), 1, training_sequence_length, true, &error)) {
         std::cerr << "batch loader initialization failed: " << error << '\n';
         return 1;
     }
@@ -110,7 +113,20 @@ int main(int argc, char** argv) {
     metadata.seed = 17;
     metadata.batch_size = loader.batch_size();
     metadata.sequence_length = loader.sequence_length();
-    metadata.learning_rate = 0.05f;
+    metadata.learning_rate = file_backed ? 0.005f : 0.01f;
+    const char* learning_rate_text = std::getenv("ATTENTION_LEARNING_RATE");
+    if (learning_rate_text != nullptr) {
+        try {
+            metadata.learning_rate = std::stof(learning_rate_text);
+        } catch (...) {
+            std::cerr << "ATTENTION_LEARNING_RATE is invalid\n";
+            return 1;
+        }
+    }
+    if (!std::isfinite(metadata.learning_rate) || !(metadata.learning_rate > 0.0f)) {
+        std::cerr << "ATTENTION_LEARNING_RATE must be finite and positive\n";
+        return 1;
+    }
 
     attention::TrainingRunLogger logger;
     if (!logger.initialize(metadata, &error)) {
@@ -127,55 +143,76 @@ int main(int argc, char** argv) {
         validation_tokens = {1, 2, 0, 1, 2, 0, 1, 2};
     }
     attention::TrainingBatchLoader validation_loader;
-    if (!validation_loader.initialize(std::move(validation_tokens), 1, 4, true, &error)) {
+    if (!validation_loader.initialize(std::move(validation_tokens), 1, training_sequence_length, true, &error)) {
         std::cerr << "validation loader initialization failed: " << error << '\n';
         return 1;
     }
     attention::SgdOptimizer optimizer(metadata.learning_rate);
+    std::uint64_t max_steps = 0;
+    const char* max_steps_text = std::getenv("ATTENTION_MAX_STEPS");
+    if (max_steps_text != nullptr) {
+        try {
+            max_steps = std::stoull(max_steps_text);
+        } catch (...) {
+            std::cerr << "ATTENTION_MAX_STEPS is invalid\n";
+            return 1;
+        }
+        if (max_steps == 0) {
+            std::cerr << "ATTENTION_MAX_STEPS must be positive\n";
+            return 1;
+        }
+    }
+    const std::size_t tokens_per_epoch = loader.batch_count() * loader.batch_size() * loader.sequence_length();
     std::cout << std::setprecision(9) << "step,loss_before,loss_after,gradient_l2_norm,validation_loss\n";
     float first_loss = 0.0f;
     float last_loss = 0.0f;
     float final_validation_loss = 0.0f;
     attention::TrainingBatch last_batch;
-    for (std::uint64_t step = 0; !loader.exhausted(); ++step) {
-        attention::TrainingBatch batch;
-        if (!loader.next(batch, &error)) {
-            std::cerr << "batch loading failed: " << error << '\n';
-            return 1;
+    std::uint64_t step = 0;
+    while (max_steps == 0 || step < max_steps) {
+        loader.reset();
+        while (!loader.exhausted() && (max_steps == 0 || step < max_steps)) {
+            attention::TrainingBatch batch;
+            if (!loader.next(batch, &error)) {
+                std::cerr << "batch loading failed: " << error << '\n';
+                return 1;
+            }
+            attention::TrainingStepResult result;
+            if (!attention::Trainer::step(model, batch.token_ids, batch.batch_size,
+                                          batch.sequence_length, parameters, optimizer, result, &error)) {
+                std::cerr << "training step failed: " << error << '\n';
+                return 1;
+            }
+            const float gradient_norm = parameters.gradient_l2_norm();
+            attention::ValidationResult validation_result;
+            if (!attention::ValidationEvaluator::evaluate(model, validation_loader, parameters,
+                                                          validation_result, &error)) {
+                std::cerr << "validation failed: " << error << '\n';
+                return 1;
+            }
+            final_validation_loss = validation_result.mean_loss;
+            attention::TrainingLogRecord record;
+            const std::uint64_t epoch = tokens_per_epoch == 0 ? 0 : step / loader.batch_count();
+            record.step = step;
+            record.batch_index = epoch * loader.batch_count() + loader.batches_emitted() - 1;
+            record.token_offset = epoch * tokens_per_epoch + batch.token_offset;
+            record.tokens_processed = epoch * tokens_per_epoch + loader.tokens_processed();
+            record.loss_before = result.loss_before;
+            record.loss_after = result.loss_after;
+            record.learning_rate = metadata.learning_rate;
+            record.gradient_l2_norm = gradient_norm;
+            record.validation_loss = validation_result.mean_loss;
+            if (!logger.append(record, &error)) {
+                std::cerr << "run logging failed: " << error << '\n';
+                return 1;
+            }
+            if (step == 0) first_loss = result.loss_before;
+            last_loss = result.loss_after;
+            last_batch = batch;
+            std::cout << step << ',' << result.loss_before << ',' << result.loss_after << ','
+                      << gradient_norm << ',' << validation_result.mean_loss << '\n';
+            ++step;
         }
-        attention::TrainingStepResult result;
-        if (!attention::Trainer::step(model, batch.token_ids, batch.batch_size,
-                                      batch.sequence_length, parameters, optimizer, result, &error)) {
-            std::cerr << "training step failed: " << error << '\n';
-            return 1;
-        }
-        const float gradient_norm = parameters.gradient_l2_norm();
-        attention::ValidationResult validation_result;
-        if (!attention::ValidationEvaluator::evaluate(model, validation_loader, parameters,
-                                                      validation_result, &error)) {
-            std::cerr << "validation failed: " << error << '\n';
-            return 1;
-        }
-        final_validation_loss = validation_result.mean_loss;
-        attention::TrainingLogRecord record;
-        record.step = step;
-        record.batch_index = loader.batches_emitted() - 1;
-        record.token_offset = batch.token_offset;
-        record.tokens_processed = loader.tokens_processed();
-        record.loss_before = result.loss_before;
-        record.loss_after = result.loss_after;
-        record.learning_rate = metadata.learning_rate;
-        record.gradient_l2_norm = gradient_norm;
-        record.validation_loss = validation_result.mean_loss;
-        if (!logger.append(record, &error)) {
-            std::cerr << "run logging failed: " << error << '\n';
-            return 1;
-        }
-        if (step == 0) first_loss = result.loss_before;
-        last_loss = result.loss_after;
-        last_batch = batch;
-        std::cout << step << ',' << result.loss_before << ',' << result.loss_after << ','
-                  << gradient_norm << ',' << validation_result.mean_loss << '\n';
     }
     if (!(last_loss < first_loss)) {
         std::cerr << "loss did not decrease" << '\n';
@@ -204,8 +241,8 @@ int main(int argc, char** argv) {
     progress.run_id = metadata.run_id;
     progress.dataset_id = metadata.dataset_id;
     progress.dataset_revision = metadata.dataset_revision;
-    progress.global_step = loader.batches_emitted();
-    progress.tokens_processed = loader.tokens_processed();
+    progress.global_step = step;
+    progress.tokens_processed = step * loader.batch_size() * loader.sequence_length();
     progress.next_batch_index = loader.batches_emitted();
     progress.learning_rate = metadata.learning_rate;
     std::string training_checkpoint;
