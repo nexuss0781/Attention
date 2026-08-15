@@ -55,12 +55,12 @@ run_colab_workflow() {
         return 0
     fi
     echo "Running Attention from: ${repo_root}"
-    "${repo_root}/run.sh" setup-drive "${repo_root}"
-    "${repo_root}/run.sh" validate-curriculum
-    "${repo_root}/run.sh" prepare-module1 "${repo_root}"
-    "${repo_root}/run.sh" bootstrap "${repo_root}"
+    bash "${repo_root}/run.sh" setup-drive "${repo_root}"
+    bash "${repo_root}/run.sh" validate-curriculum
+    bash "${repo_root}/run.sh" prepare-module1 "${repo_root}"
+    bash "${repo_root}/run.sh" bootstrap "${repo_root}"
     echo "Starting Module 1.1; the command stops at AWAITING_REVIEW for manual verdict."
-    "${repo_root}/run.sh" train-module 1.1 module_1_1_session_001 "${repo_root}"
+    bash "${repo_root}/run.sh" train-module 1.1 module_1_1_session_001 "${repo_root}"
 }
 
 set_drive_root() {
@@ -87,7 +87,8 @@ Usage:
   ./run.sh chapter1 MODULE
   ./run.sh chapter1-status MODULE
   ./run.sh chapter1-decision MODULE PROMOTE|RETRY|ABORT "RATIONALE"
-  ./run.sh chapter1-retry MODULE START_DOCUMENT [DRIVE_ROOT]
+  bash run.sh retry-module MODULE START_DOCUMENT DRIVE_ROOT
+  bash run.sh chapter1-retry MODULE START_DOCUMENT [DRIVE_ROOT]
 
 MODULE values:
   1.1  symbol_and_byte_regularity
@@ -679,6 +680,22 @@ chapter1_retry() {
         SKIP_PREPARE=1 chapter1_run "${module}"
 }
 
+retry_module() {
+    local module="$1" retry_start="$2" root="$3"
+    set_drive_root "${root}"
+    module_config "${module}"
+    local session_dir="$(session_dir_fixed "${module}")"
+    require_file "${session_dir}/session_manifest.json"
+    local state="$(cat "${session_dir}/STATE")"
+    if [[ "${state}" == "AWAITING_REVIEW" ]]; then
+        decide_session_alias "$(module_session_id_fixed "${module}")" RETRY "Competency test failed; automatically retrying with a new FineWeb document chunk." "${root}"
+    elif [[ "${state}" != "RETRY" ]]; then
+        echo "Cannot retry ${module}: session state is ${state}; expected AWAITING_REVIEW or RETRY." >&2
+        exit 1
+    fi
+    chapter1_retry "${module}" "${retry_start}" "${root}"
+}
+
 chapter1_decision() {
     local module="$1"
     local decision="$2"
@@ -781,6 +798,10 @@ case "${command}" in
     chapter1-decision)
         [[ $# -eq 3 ]] || { usage; exit 2; }
         chapter1_decision "$1" "$2" "$3"
+        ;;
+    retry-module)
+        [[ $# -eq 3 ]] || { usage; exit 2; }
+        retry_module "$1" "$2" "$3"
         ;;
     chapter1-retry)
         [[ $# -eq 2 || $# -eq 3 ]] || { usage; exit 2; }
