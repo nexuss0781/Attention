@@ -2,13 +2,71 @@
 
 #include "attention/linear_attention.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
+#include <random>
 #include <string>
 #include <vector>
 
 namespace attention {
 namespace {
+
+void scalar_reference(const Tensor& query,
+                      const Tensor& key,
+                      const Tensor& value,
+                      std::size_t head_count,
+                      float epsilon,
+                      Tensor& output) {
+    const auto& shape = query.shape();
+    const std::size_t batch_size = shape[0];
+    const std::size_t sequence_length = shape[1];
+    const std::size_t hidden_size = shape[2];
+    const std::size_t head_size = hidden_size / head_count;
+    ASSERT_TRUE(output.reset(shape));
+    std::vector<double> state(head_count * head_size * head_size, 0.0);
+    std::vector<double> normalizer(hidden_size, 0.0);
+    std::vector<float> query_features(hidden_size);
+    std::vector<float> key_features(hidden_size);
+    for (std::size_t batch = 0; batch < batch_size; ++batch) {
+        std::fill(state.begin(), state.end(), 0.0);
+        std::fill(normalizer.begin(), normalizer.end(), 0.0);
+        for (std::size_t position = 0; position < sequence_length; ++position) {
+            const std::size_t row_offset = (batch * sequence_length + position) * hidden_size;
+            for (std::size_t channel = 0; channel < hidden_size; ++channel) {
+                key_features[channel] = std::exp(std::clamp(key.data()[row_offset + channel], -20.0f, 20.0f));
+                normalizer[channel] += static_cast<double>(key_features[channel]);
+                query_features[channel] = std::exp(std::clamp(query.data()[row_offset + channel], -20.0f, 20.0f));
+            }
+            for (std::size_t head = 0; head < head_count; ++head) {
+                const std::size_t offset = head * head_size;
+                double* head_state = state.data() + head * head_size * head_size;
+                for (std::size_t key_channel = 0; key_channel < head_size; ++key_channel) {
+                    double* state_row = head_state + key_channel * head_size;
+                    for (std::size_t value_channel = 0; value_channel < head_size; ++value_channel) {
+                        state_row[value_channel] += static_cast<double>(key_features[offset + key_channel]) *
+                            static_cast<double>(value.data()[row_offset + offset + value_channel]);
+                    }
+                }
+                double denominator = 0.0;
+                for (std::size_t key_channel = 0; key_channel < head_size; ++key_channel) {
+                    denominator += static_cast<double>(query_features[offset + key_channel]) *
+                        normalizer[offset + key_channel];
+                }
+                const double safe_denominator = std::max(denominator, static_cast<double>(epsilon));
+                for (std::size_t value_channel = 0; value_channel < head_size; ++value_channel) {
+                    double numerator = 0.0;
+                    for (std::size_t key_channel = 0; key_channel < head_size; ++key_channel) {
+                        numerator += static_cast<double>(query_features[offset + key_channel]) *
+                            head_state[key_channel * head_size + value_channel];
+                    }
+                    output.data()[row_offset + offset + value_channel] =
+                        static_cast<float>(numerator / safe_denominator);
+                }
+            }
+        }
+    }
+}
 
 TEST(LinearCausalAttentionTest, CausalUniformFeatureMapProducesStreamingAverage) {
     LinearCausalAttention attention;
@@ -65,6 +123,36 @@ TEST(LinearCausalAttentionTest, IsDeterministicAndUsesDimensionBoundedState) {
     ASSERT_TRUE(first.all_finite());
     for (std::size_t index = 0; index < first.size(); ++index) {
         EXPECT_FLOAT_EQ(first.data()[index], second.data()[index]);
+    }
+}
+
+TEST(LinearCausalAttentionTest, EigenKernelMatchesScalarReference) {
+    constexpr std::size_t batch_size = 2;
+    constexpr std::size_t sequence_length = 17;
+    constexpr std::size_t hidden_size = 8;
+    constexpr std::size_t head_count = 2;
+    Tensor query;
+    Tensor key;
+    Tensor value;
+    ASSERT_TRUE(query.reset({batch_size, sequence_length, hidden_size}));
+    ASSERT_TRUE(key.reset({batch_size, sequence_length, hidden_size}));
+    ASSERT_TRUE(value.reset({batch_size, sequence_length, hidden_size}));
+    std::mt19937 generator(20260815);
+    std::uniform_real_distribution<float> distribution(-0.75f, 0.75f);
+    for (std::size_t index = 0; index < query.size(); ++index) {
+        query.data()[index] = distribution(generator);
+        key.data()[index] = distribution(generator);
+        value.data()[index] = distribution(generator);
+    }
+    LinearCausalAttention attention;
+    ASSERT_TRUE(attention.reset(sequence_length, hidden_size, 1e-6f, nullptr, head_count));
+    Tensor actual;
+    ASSERT_TRUE(attention.forward(query, key, value, actual));
+    Tensor expected;
+    scalar_reference(query, key, value, head_count, 1e-6f, expected);
+    ASSERT_EQ(actual.size(), expected.size());
+    for (std::size_t index = 0; index < actual.size(); ++index) {
+        EXPECT_NEAR(actual.data()[index], expected.data()[index], 1e-5f) << index;
     }
 }
 

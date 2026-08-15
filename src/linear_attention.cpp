@@ -1,5 +1,7 @@
 #include "attention/linear_attention.h"
 
+#include <Eigen/Dense>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -92,10 +94,14 @@ bool LinearCausalAttention::forward(const Tensor& query,
     if (!output.reset(shape, TensorDataType::F32, TensorDevice::CPU, error)) return false;
 
     const std::size_t state_size = head_count_ * head_size_ * head_size_;
+    using RowMajorMatrix = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
+    using ColumnVector = Eigen::Matrix<double, Eigen::Dynamic, 1>;
     std::vector<double> state(state_size, 0.0);
     std::vector<double> normalizer(hidden_size_, 0.0);
-    std::vector<float> query_features(hidden_size_);
-    std::vector<float> key_features(hidden_size_);
+    std::vector<double> query_features(hidden_size_);
+    std::vector<double> key_features(hidden_size_);
+    std::vector<double> value_features(hidden_size_);
+    std::vector<double> output_features(hidden_size_);
 
     for (std::size_t batch = 0; batch < batch_size; ++batch) {
         std::fill(state.begin(), state.end(), 0.0);
@@ -103,42 +109,42 @@ bool LinearCausalAttention::forward(const Tensor& query,
         for (std::size_t position = 0; position < sequence_length; ++position) {
             const std::size_t row_offset = (batch * sequence_length + position) * hidden_size_;
             for (std::size_t channel = 0; channel < hidden_size_; ++channel) {
-                key_features[channel] = positive_feature(key.data()[row_offset + channel]);
-                normalizer[channel] += static_cast<double>(key_features[channel]);
+                key_features[channel] = static_cast<double>(positive_feature(key.data()[row_offset + channel]));
+                value_features[channel] = static_cast<double>(value.data()[row_offset + channel]);
+                normalizer[channel] += key_features[channel];
             }
             for (std::size_t head = 0; head < head_count_; ++head) {
                 const std::size_t channel_offset = head * head_size_;
                 double* head_state = state.data() + head * head_size_ * head_size_;
-                for (std::size_t key_channel = 0; key_channel < head_size_; ++key_channel) {
-                    const std::size_t global_key = channel_offset + key_channel;
-                    const double key_value = static_cast<double>(key_features[global_key]);
-                    double* state_row = head_state + key_channel * head_size_;
-                    for (std::size_t value_channel = 0; value_channel < head_size_; ++value_channel) {
-                        state_row[value_channel] += key_value * static_cast<double>(
-                            value.data()[row_offset + channel_offset + value_channel]);
-                    }
-                }
+                Eigen::Map<RowMajorMatrix> state_map(
+                    head_state, static_cast<Eigen::Index>(head_size_), static_cast<Eigen::Index>(head_size_));
+                const Eigen::Map<const ColumnVector> key_map(
+                    key_features.data() + channel_offset, static_cast<Eigen::Index>(head_size_));
+                const Eigen::Map<const Eigen::Matrix<double, 1, Eigen::Dynamic>> value_map(
+                    value_features.data() + channel_offset, 1, static_cast<Eigen::Index>(head_size_));
+                state_map.noalias() += key_map * value_map;
             }
             for (std::size_t channel = 0; channel < hidden_size_; ++channel) {
-                query_features[channel] = positive_feature(query.data()[row_offset + channel]);
+                query_features[channel] = static_cast<double>(positive_feature(query.data()[row_offset + channel]));
             }
             for (std::size_t head = 0; head < head_count_; ++head) {
                 const std::size_t channel_offset = head * head_size_;
                 const double* head_state = state.data() + head * head_size_ * head_size_;
-                double denominator = 0.0;
-                for (std::size_t key_channel = 0; key_channel < head_size_; ++key_channel) {
-                    const std::size_t global_key = channel_offset + key_channel;
-                    denominator += static_cast<double>(query_features[global_key]) * normalizer[global_key];
-                }
+                const Eigen::Map<const RowMajorMatrix> state_map(
+                    head_state, static_cast<Eigen::Index>(head_size_), static_cast<Eigen::Index>(head_size_));
+                const Eigen::Map<const ColumnVector> query_map(
+                    query_features.data() + channel_offset, static_cast<Eigen::Index>(head_size_));
+                double denominator = query_map.dot(
+                    Eigen::Map<const ColumnVector>(normalizer.data() + channel_offset,
+                                                   static_cast<Eigen::Index>(head_size_)));
                 const double safe_denominator = std::max(denominator, static_cast<double>(epsilon_));
+                Eigen::Map<ColumnVector> output_map(
+                    output_features.data() + channel_offset, static_cast<Eigen::Index>(head_size_));
+                output_map.noalias() = state_map.transpose() * query_map;
+                output_map.array() /= safe_denominator;
                 for (std::size_t value_channel = 0; value_channel < head_size_; ++value_channel) {
-                    double numerator = 0.0;
-                    for (std::size_t key_channel = 0; key_channel < head_size_; ++key_channel) {
-                        numerator += static_cast<double>(query_features[channel_offset + key_channel]) *
-                            head_state[key_channel * head_size_ + value_channel];
-                    }
                     output.data()[row_offset + channel_offset + value_channel] =
-                        static_cast<float>(numerator / safe_denominator);
+                        static_cast<float>(output_features[channel_offset + value_channel]);
                 }
             }
         }
