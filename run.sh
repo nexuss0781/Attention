@@ -11,6 +11,58 @@ CHAPTER1_SESSIONS="${CHAPTER1_ROOT}/sessions"
 CHAPTER1_CHECKPOINTS="${CHAPTER1_ROOT}/checkpoints"
 CURRICULUM="${ROOT_DIR}/data/english_competency_curriculum_v1.json"
 
+bootstrap_colab_repository() {
+    local repo_root="${1:-/content/drive/MyDrive/Attention}"
+    local repo_url="${ATTENTION_REPO_URL:-https://github.com/nexuss0781/Attention.git}"
+    local backup_root=""
+
+    if [[ ! -d "/content/drive/MyDrive" && "${repo_root}" == /content/drive/* ]]; then
+        echo "Google Drive is not mounted at /content/drive/MyDrive." >&2
+        echo "Run the Drive mount cell in Colab, then run: bash run.sh colab" >&2
+        return 1
+    fi
+
+    mkdir -p "$(dirname "${repo_root}")"
+    if [[ -d "${repo_root}/.git" ]] && git -C "${repo_root}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "Updating existing Attention repository in Drive..."
+        git -C "${repo_root}" remote set-url origin "${repo_url}" 2>/dev/null || git -C "${repo_root}" remote add origin "${repo_url}"
+        git -C "${repo_root}" fetch origin master
+        git -C "${repo_root}" checkout -B master origin/master
+        git -C "${repo_root}" reset --hard origin/master
+    else
+        if [[ -e "${repo_root}" ]]; then
+            backup_root="${repo_root}.non_git_backup.$(date -u +%Y%m%dT%H%M%SZ)"
+            echo "Existing non-Git directory found; preserving it at ${backup_root}"
+            mv "${repo_root}" "${backup_root}"
+        fi
+        echo "Cloning Attention into Drive..."
+        git clone --branch master "${repo_url}" "${repo_root}"
+        if [[ -n "${backup_root}" && -d "${backup_root}/chapter1" ]]; then
+            echo "Restoring persistent Chapter 1 artifacts from the preserved directory..."
+            cp -a "${backup_root}/chapter1" "${repo_root}/"
+        fi
+    fi
+    chmod +x "${repo_root}/run.sh"
+    BOOTSTRAPPED_REPO="${repo_root}"
+}
+
+run_colab_workflow() {
+    local repo_root="${1:-/content/drive/MyDrive/Attention}"
+    bootstrap_colab_repository "${repo_root}"
+    repo_root="${BOOTSTRAPPED_REPO}"
+    if [[ "${ATTENTION_COLAB_BOOTSTRAP_ONLY:-0}" == "1" ]]; then
+        echo "Colab repository bootstrap complete: ${repo_root}"
+        return 0
+    fi
+    echo "Running Attention from: ${repo_root}"
+    "${repo_root}/run.sh" setup-drive "${repo_root}"
+    "${repo_root}/run.sh" validate-curriculum
+    "${repo_root}/run.sh" prepare-module1 "${repo_root}"
+    "${repo_root}/run.sh" bootstrap "${repo_root}"
+    echo "Starting Module 1.1; the command stops at AWAITING_REVIEW for manual verdict."
+    "${repo_root}/run.sh" train-module 1.1 module_1_1_session_001 "${repo_root}"
+}
+
 set_drive_root() {
     DRIVE_ROOT="$1"
     CHAPTER1_ROOT="${DRIVE_ROOT}/chapter1"
@@ -22,6 +74,7 @@ set_drive_root() {
 usage() {
     cat <<'EOF'
 Usage:
+  ./run.sh colab [DRIVE_REPO]
   ./run.sh setup-drive DRIVE_ROOT
   ./run.sh prepare-module1 DRIVE_ROOT
   ./run.sh bootstrap DRIVE_ROOT
@@ -664,10 +717,21 @@ EOF
     fi
 }
 
-if [[ $# -lt 1 ]]; then usage; exit 2; fi
+if [[ $# -eq 0 ]]; then
+    if [[ -d "/content/drive/MyDrive" ]]; then
+        run_colab_workflow "/content/drive/MyDrive/Attention"
+        exit $?
+    fi
+    usage
+    exit 2
+fi
 command="$1"
 shift
 case "${command}" in
+    colab)
+        [[ $# -eq 0 || $# -eq 1 ]] || { usage; exit 2; }
+        run_colab_workflow "${1:-/content/drive/MyDrive/Attention}"
+        ;;
     setup-drive)
         [[ $# -eq 1 ]] || { usage; exit 2; }
         setup_drive "$1"
