@@ -89,7 +89,14 @@
 
 ## Final release execution
 
-- [ ] Audit latest demo, package versions, and linked Vercel project.
-- [ ] Push latest demo code under `DEMO/morrow-field` to Attention.
-- [ ] Publish current npm and PyPI artifacts only when newer than registry versions.
-- [ ] Deploy the linked Morrow Field project to Vercel Production and verify its live URL.
+- [x] Audit latest demo, package versions, and linked Vercel project.
+- [x] Push latest demo code under `DEMO/morrow-field` to Attention.
+- [ ] Publish current npm and PyPI artifacts only when newer than registry versions — PyPI is current at 0.2.1; npm 0.2.0 requires valid npm authentication.
+- [ ] Deploy the linked Morrow Field project to Vercel Production and verify its live URL — the project has no deployments; the requested alias serves a different existing site.
+
+
+## Alternate domain and npm retry
+
+- [x] Check an unused Vercel alias without changing `marrow-field.vercel.app`; `morrow-field-studio.vercel.app` currently returns 404 and is available for assignment.
+- [x] Retry npm 0.2.0 publication using the configured npm variable; npm accepted authentication but returned 404 on publish, indicating the token/account cannot publish this package.
+- [x] Report the alternate URL and final npm result.

@@ -131,8 +131,8 @@ importers:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       nexuss-auth:
-        specifier: file:../nexuss-auth/packages/sdk
-        version: file:../nexuss-auth/packages/sdk
+        specifier: 0.1.0
+        version: 0.1.0
       react:
         specifier: ^19.2.1
         version: 19.2.1
@@ -2850,9 +2850,8 @@ packages:
       react: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
       react-dom: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
 
-  nexuss-auth@file:../nexuss-auth/packages/sdk:
-    resolution: {directory: ../nexuss-auth/packages/sdk, type: directory}
-    hasBin: true
+  nexuss-auth@0.1.0:
+    resolution: {integrity: sha512-xcBmUKVnynlH66agPQ+IJNFKnoOcp/GYg/n4soLDicL9tYD2hchpBh2ERtM/lH6Bx5m3/ETbtuEKAdFrxHDf8w==}
 
   node-releases@2.0.23:
     resolution: {integrity: sha512-cCmFDMSm26S6tQSDpBCg/NR8NENrVPhAJSf+XbxBG4rPFaaonlEoE9wHQmun+cls499TQGSb7ZyPBRlzgKfpeg==}
@@ -6418,7 +6417,7 @@ snapshots:
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
 
-  nexuss-auth@file:../nexuss-auth/packages/sdk: {}
+  nexuss-auth@0.1.0: {}
 
   node-releases@2.0.23: {}
 
