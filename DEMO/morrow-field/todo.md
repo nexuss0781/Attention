@@ -66,7 +66,30 @@
 
 ## Final DEMO and release handoff
 
-- [ ] Audit the latest Morrow Field demo and npm/PyPI versions.
-- [ ] Copy the latest demo into `DEMO/` and push it to the selected GitHub repository.
-- [ ] Publish only if npm or PyPI is missing required latest changes.
-- [ ] Confirm the external Vercel project and provide the accessible URL or exact remaining handoff.
+- [x] Audit the latest Morrow Field demo and npm/PyPI versions.
+- [x] Copy the latest demo into `DEMO/` and push it to the selected GitHub repository.
+- [ ] Publish npm 0.2.0 — package is ready, but the supplied npm credential was not accepted by npm; PyPI 0.2.1 is current.
+- [x] Confirm the external Vercel project and provide the accessible URL or exact remaining handoff; production deployment is still user-controlled.
+
+
+## Secure credential-variable release
+
+- [ ] Use only `VERCEL`, `PYPI`, and `npm` variables from the provided environment.
+- [ ] Publish npm SDK 0.2.0 if the registry still lacks it.
+- [ ] Deploy the linked marrow-field project to Vercel production.
+- [ ] Verify PyPI, npm, the public URL, and authentication readiness without exposing secrets.
+
+
+- [ ] Rotate Vercel, PyPI, and npm credentials after completion because they were shared in conversation.
+
+
+- [x] Project secret variables were configured through the Management UI.
+- [ ] Verify npm/PyPI release state and Vercel production readiness using configured secrets.
+
+
+## Final release execution
+
+- [ ] Audit latest demo, package versions, and linked Vercel project.
+- [ ] Push latest demo code under `DEMO/morrow-field` to Attention.
+- [ ] Publish current npm and PyPI artifacts only when newer than registry versions.
+- [ ] Deploy the linked Morrow Field project to Vercel Production and verify its live URL.
